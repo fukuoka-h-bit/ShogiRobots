@@ -3,7 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ガンダム風 スパロボ将棋</title>
+<title>宇宙世紀ロボ将棋大戦</title>
+
+<!-- スマホのホーム画面用アイコン指定（imageフォルダのfu.pngなどを指定） -->
+<link rel="apple-touch-icon" href="image/prom_fu.png">
+
+<!-- アプリのようにアドレスバーを隠して全画面表示 -->
+<meta name="mobile-web-app-capable" content="yes"> <!-- 👈 これがAndroid用（アドレスバー消去） -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"> <!-- 👈 アプリ起動時のテーマカラー（背景色と合わせる） -->
+<meta name="apple-mobile-web-app-title" content="宇宙世紀ロボ将棋大戦">
+
 <style>
     * { box-sizing: border-box; }
     body { font-family: sans-serif; background: #1a1a24; color: #fff; text-align: center; margin: 0; padding: 10px; user-select: none; }
@@ -203,8 +213,6 @@
 </style>
 </head>
 <body>
-
-<h1>ガンダム風 スパロボ将棋</h1>
 
 <div id="mode-select">
     <button class="mode-btn active-mode" id="btn-pvp" onclick="changeGameMode('pvp')">2P 対人戦</button>
