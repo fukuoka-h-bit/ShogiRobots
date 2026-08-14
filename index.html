@@ -385,6 +385,7 @@ function updateAiUi() {
 }
 
 function learnFromCapture(targetPiece, atR, atC, attackerPiece) {
+    if (gameMode === 'pvp') return; // 🤝 2P対人戦のときは学習データを記録しない！
     if (targetPiece.p !== 2) return; 
     let penaltyVal = (PIECE_VALUES[targetPiece.t] || 500) * 1.5;
     cpuBrainData.badPositions.push({ pieceType: targetPiece.t, r: atR, c: atC, killer: attackerPiece.t, penalty: penaltyVal });
@@ -770,7 +771,31 @@ function calculateTargetsPure(origin, mode) {
         let extraVectors = [];
         if (p.t === 'HI' && p.promoted) extraVectors = [[-1,-1],[-1,1],[1,-1],[1,1]];
         if (p.t === 'KA' && p.promoted && p.mountedPiece !== 'HI') extraVectors = [[-1,0],[1,0],[0,-1],[0,1]];
-        if (p.t === 'KA' && p.mountedPiece === 'HI') extraVectors = [[-1,0],[1,0],[0,-1],[0,1]];
+        
+        // 🐎【修正】馬が飛車(HI)とドッキングした時は「上下左右の全移動（クイーン化）」を追加！
+        if (p.t === 'KA' && p.mountedPiece === 'HI') {
+            const hiVectors = [[-1,0],[1,0],[0,-1],[0,1]];
+            hiVectors.forEach(v => {
+                let step = 1;
+                while (true) {
+                    let tr = r + v[0] * step, tc = c + v[1] * step;
+                    if (tr < 0 || tr >= 9 || tc < 0 || tc >= 9) break;
+                    const targetPiece = boardState[tr] ? boardState[tr][tc] : null;
+                    
+                    if (mode === 'move') {
+                        if (targetPiece) { resTargets.push({ r: tr, c: tc, blocked: true }); break; }
+                        else resTargets.push({ r: tr, c: tc, blocked: false });
+                    } else if (mode === 'attack' || mode === 'special') {
+                        if (targetPiece) {
+                            if (targetPiece.p !== p.p) resTargets.push({ r: tr, c: tc, blocked: false });
+                            else resTargets.push({ r: tr, c: tc, blocked: true });
+                            break;
+                        }
+                    }
+                    step++;
+                }
+            });
+        }
 
         extraVectors.forEach(v => {
             let tr = r + v[0], tc = c + v[1];
@@ -1733,13 +1758,42 @@ function executeAttack(actor, tr, tc, isSpecial, isHeavy = false, isSpearBypass 
                 let infoEl = document.getElementById('info-panel');
                 if (infoEl) infoEl.innerText = `${actorName}の遠距離射撃！${targetName}を遠距離消滅させた！`;
             } else if (actor.t === 'KA' && actor.mountedPiece === 'HI' && dist >= 2) {
-                addLog(turn, `${actorName}のオールレンジ狙撃！${targetName}を遠距離撃破！`);
-                let capType = (targetPiece.t === 'SOLDIER' || targetPiece.t === 'SHOGUN') ? 'KI' : targetPiece.t;
-                captured[actor.p].push(capType);
-                boardState[tr][tc] = null;
-                let infoEl = document.getElementById('info-panel');
-                if (infoEl) infoEl.innerText = `${actorName}の長距離砲撃！${targetName}を撃破（遠距離のため移動なし）！`;
+                // 🐎 クイーンの長距離砲撃
+                if (targetPiece.hp <= 0) {
+                    // ⚔️ HPが0になった（トドメ）なら、相手のマスへ踏み込んで拿捕！
+                    addLog(turn, `${actorName}のオールレンジ攻撃！${targetName}を撃破して拿捕！`);
+                    let capType = (targetPiece.t === 'SOLDIER' || targetPiece.t === 'SHOGUN') ? 'KI' : targetPiece.t;
+                    captured[actor.p].push(capType);
+                    if (targetPiece.mountedPiece) captured[actor.p].push(targetPiece.mountedPiece);
+                    
+                    boardState[tr][tc] = actor;
+                    if (selected) boardState[selected.r][selected.c] = null;
+                    
+                    playCutinEffect("拿捕！", 'daho', () => {
+                        renderBoard(); playSE('stomp');
+                        const destCell = document.getElementById(`cell-${tr}-${tc}`);
+                        if (destCell) {
+                            const pEl = destCell.querySelector('.piece');
+                            if (pEl) {
+                                pEl.classList.add('stomp-animation');
+                                setTimeout(() => pEl.classList.remove('stomp-animation'), 400);
+                            }
+                        }
+                    });
+
+                    checkPickupItem(tr, tc, actor);
+                    checkPromotion(fromR, tr, actor);
+                    let infoEl = document.getElementById('info-panel');
+                    if (infoEl) infoEl.innerText = `${actorName}が【${targetName}】を拿捕して前進！`;
+                } else {
+                    // 💥 まだHPが残っているなら、その場でビーム（移動なし）
+                    addLog(turn, `${actorName}のオールレンジ狙撃！${targetName}に1ダメージ！`);
+                    let infoEl = document.getElementById('info-panel');
+                    if (infoEl) infoEl.innerText = `${actorName}の長距離砲撃！${targetName}へ遠距離ビーム！`;
+                    renderBoard();
+                }
             } else {
+                // ⚔️ 通常の近接・その他撃破処理
                 addLog(turn, `${actorName}の${skillName}！${targetName}を拿捕（撃破）！`);
                 let capType = (targetPiece.t === 'SOLDIER' || targetPiece.t === 'SHOGUN') ? 'KI' : targetPiece.t;
                 captured[actor.p].push(capType);
@@ -2127,15 +2181,23 @@ function endTurn() {
 
     turn = turn === 1 ? 2 : 1;
 
-    // 🐉 龍のメガ粒子砲（チャージ完了時の自動発射判定）
+    // 🐉 龍のメガ粒子砲（チャージ完了時の自動発射 ➔ 1ターン消化してターン終了）
+    let firedMegaBeam = false;
     for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
             let p = boardState[r] ? boardState[r][c] : null;
             if (p && p.p === turn && p.t === 'HI' && p.isCharging) {
                 p.isCharging = false;
+                firedMegaBeam = true;
                 executeRyuMegaParticleBeam(r, c, p);
             }
         }
+    }
+
+    // 💥 メガ粒子砲を発射したターンは、攻撃終了後にそのまま即相手のターンへ移行！
+    if (firedMegaBeam) {
+        setTimeout(endTurn, 800);
+        return;
     }
 
     resetSelection();
