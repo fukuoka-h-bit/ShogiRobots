@@ -1,0 +1,2595 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ガンダム風 スパロボ将棋</title>
+<style>
+    * { box-sizing: border-box; }
+    body { font-family: sans-serif; background: #1a1a24; color: #fff; text-align: center; margin: 0; padding: 10px; user-select: none; }
+    h1 { margin: 0 0 5px 0; color: #4da6ff; font-size: 18px; }
+    #info-panel { font-size: 0.85rem; margin-bottom: 8px; height: 32px; color: #ffcc00; font-weight: bold; line-height: 1.3; }
+    
+    /* 🎛️ モード選択ボタン（選択中の黄色発光スタイル） */
+    #mode-select { display: flex; justify-content: center; gap: 6px; margin-bottom: 8px; }
+    .mode-btn { padding: 6px 12px; font-size: 11px; background: #2a2a3a; color: #aaa; border: 1px solid #555; border-radius: 4px; cursor: pointer; font-weight: bold; transition: all 0.2s; }
+    .mode-btn:hover { background: #3a3a4c; color: #fff; }
+    .mode-btn.active-mode { 
+        background: #665500 !important; 
+        color: #ffff00 !important; 
+        border: 2px solid #ffff00 !important; 
+        box-shadow: 0 0 10px rgba(255, 255, 0, 0.6) !important;
+    }
+
+    #audio-controls { margin-bottom: 8px; }
+    .audio-btn { padding: 4px 8px; font-size: 11px; background: #224466; color: #00ccff; border: 1px solid #00ccff; border-radius: 4px; cursor: pointer; }
+    .audio-btn.muted { background: #442222; color: #ff6666; border-color: #ff6666; }
+
+    #boss-hp-container { display: none; width: 100%; max-width: 440px; margin: 0 auto 8px auto; background: #222; border: 2px solid #ff0055; border-radius: 6px; padding: 5px; box-shadow: 0 0 8px #ff0055; }
+    #boss-name { font-weight: bold; color: #ff3366; font-size: 12px; margin-bottom: 2px; }
+    #boss-hp-bar-bg { width: 100%; height: 10px; background: #444; border-radius: 3px; overflow: hidden; margin-bottom: 2px; }
+    #boss-hp-bar-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #ff0055, #ff6600); transition: width 0.3s; }
+    #boss-status-text { font-size: 10px; font-weight: bold; color: #ffff00; }
+
+    #main-layout { display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: 500px; margin: 0 auto; }
+    
+    .captured-container { display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 440px; background: #222; border: 1px solid #444; border-radius: 4px; padding: 4px 8px; min-height: 48px; }
+    .captured-label { font-size: 11px; font-weight: bold; color: #aaa; white-space: nowrap; width: 70px; text-align: left; }
+    .captured-list { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-start; flex-grow: 1; }
+    
+    .cap-item { position: relative; display: flex; align-items: center; justify-content: center; background: #333; border: 1px solid #666; border-radius: 4px; padding: 2px; width: 38px; height: 38px; cursor: pointer; }
+    .cap-item .robot-svg, .cap-item .piece-img { width: 30px; height: 30px; }
+    .cap-item .count-badge { position: absolute; top: -4px; right: -4px; background: #ff3300; color: #fff; font-size: 10px; font-weight: bold; border-radius: 8px; padding: 0 4px; border: 1px solid #fff; z-index: 20; }
+    .cap-item.selected-cap { border: 2px solid #ffff00; background: #666600; }
+    .cap-item.selectable-dock { border: 2px solid #ff00ff; background: #550055; animation: blink 0.6s infinite alternate; }
+
+    #game-container { position: relative; display: flex; justify-content: center; width: 100%; max-width: 440px; }
+    #board { position: relative; width: 100%; aspect-ratio: 1; background: #1a1a24; border: 3px solid #555; overflow: hidden; }
+    
+    #board-cells {
+        display: grid;
+        grid-template-columns: repeat(9, 1fr);
+        grid-template-rows: repeat(9, 1fr);
+        gap: 2px;
+        background: #333344;
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 1;
+    }
+
+    #board-overlay { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 100; justify-content: center; align-items: center; font-weight: bold; color: #ffff00; font-size: 16px; text-shadow: 0 0 5px #000; }
+
+    #cutin-overlay {
+        display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.85); z-index: 200; flex-direction: column;
+        justify-content: center; align-items: center; pointer-events: none;
+    }
+    #cutin-text {
+        font-size: 28px; font-weight: 900; color: #00ffff;
+        padding: 0 10px; word-break: break-word; line-height: 1.2;
+        text-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff, 0 0 40px #0088ff;
+        animation: cutin-glow 0.4s infinite alternate;
+    }
+    #cutin-text.check-text {
+        font-size: 44px !important;
+        color: #ff3300 !important;
+        text-shadow: 0 0 10px #ff0000, 0 0 20px #ff3300, 0 0 40px #ffff00 !important;
+    }
+    #cutin-text.daho-text {
+        color: #ffea00 !important;
+        font-size: 52px !important;
+        text-shadow: 0 0 15px #ffaa00, 0 0 30px #ff3300, 0 0 50px #ff0000 !important;
+    }
+    @keyframes cutin-glow {
+        from { transform: scale(0.9); opacity: 0.8; filter: drop-shadow(0 0 5px #fff); }
+        to { transform: scale(1.1); opacity: 1; filter: drop-shadow(0 0 15px #00ffff); }
+    }
+
+    .cell { 
+        background: #222230; 
+        border: 1px solid #2a2a3a;
+        display: flex; 
+        flex-direction: column; 
+        align-items: center; 
+        justify-content: center; 
+        cursor: pointer; 
+        user-select: none; 
+        position: relative; 
+        width: 100%; 
+        height: 100%; 
+    }
+    .cell.selected { background: #555500; border: 2px solid #ffff00; }
+    .cell.movable { background: #005522; }
+    .cell.attackable { background: #660000; }
+    .cell.attackable-heavy { background: #ff4500 !important; border: 2px solid #ffff00; }
+    .cell.specialable { background: #880088; }
+    .cell.last-move-to { background: #666600 !important; border: 2px solid #ffff00; }
+
+    .cell.shielded::before { content: "🛡️"; position: absolute; top: 2px; right: 2px; font-size: 12px; z-index: 20; }
+    .cell.charging::before { content: "⚡"; position: absolute; top: 2px; left: 2px; font-size: 14px; z-index: 20; animation: pulse 0.5s infinite alternate; }
+    .cell.blocked::after { content: "❌"; position: absolute; font-size: 24px; color: rgba(255,0,0,0.8); z-index: 20; }
+    
+    .cell.item-pill::after { content: "💊"; position: absolute; font-size: 22px; animation: pulse 1s infinite alternate; z-index: 15; }
+    @keyframes pulse { from { transform: scale(0.9); } to { transform: scale(1.15); } }
+
+    .cell.check-warning {
+        animation: check-blink 0.5s infinite alternate !important;
+        border: 2px solid #ff0000 !important;
+    }
+    @keyframes check-blink {
+        from { background: #880000; box-shadow: inset 0 0 10px #ff0000; }
+        to { background: #ff0000; box-shadow: inset 0 0 20px #ffff00; }
+    }
+
+    .piece { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; z-index: 10; }
+    .robot-svg, .piece-img, .fallback-svg-container { width: 90%; height: 90%; display: block; z-index: 5; object-fit: contain; }
+    
+    .piece.p1 .robot-svg, .piece.p1 .piece-img { filter: drop-shadow(0 0 3px #4da6ff); }
+    .piece.p2 .robot-svg, .piece.p2 .piece-img { filter: drop-shadow(0 0 3px #ffaa00); }
+    
+    .piece.p2 .piece-img, .piece.p2 .fallback-svg-container, .piece.p2 .robot-svg { 
+        transform: rotate(180deg); 
+    }
+
+    .piece.boss .robot-svg, .piece.boss .piece-img { filter: drop-shadow(0 0 6px #ff0055); width: 95%; height: 95%; }
+    .piece.promoted .robot-svg, .piece.promoted .piece-img { filter: drop-shadow(0 0 5px #ff3333); }
+
+    .stomp-animation {
+        animation: stomp-effect 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        z-index: 50 !important;
+    }
+    @keyframes stomp-effect {
+        0% { transform: scale(2.0); opacity: 0.6; filter: drop-shadow(0 10px 10px #000); }
+        70% { transform: scale(0.95); opacity: 1; }
+        100% { transform: scale(1.0); opacity: 1; }
+    }
+
+    #laser-svg {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        pointer-events: none; z-index: 80;
+    }
+    .laser-line {
+        stroke: #00ffff; stroke-linecap: round;
+        filter: drop-shadow(0 0 8px #00ffff) drop-shadow(0 0 15px #0088ff);
+        animation: laser-flash 0.35s ease-out forwards;
+    }
+    .laser-line.heavy {
+        stroke: #ff0055;
+        filter: drop-shadow(0 0 10px #ff0055) drop-shadow(0 0 20px #ffcc00);
+    }
+    .saber-line {
+        stroke: #00ff66; stroke-linecap: round;
+        filter: drop-shadow(0 0 10px #00ff66) drop-shadow(0 0 20px #33ff99);
+        animation: saber-slash 0.35s ease-out forwards;
+    }
+    @keyframes saber-slash {
+        0% { opacity: 0; stroke-dasharray: 200; stroke-dashoffset: 200; }
+        40% { opacity: 1; stroke-dashoffset: 0; }
+        100% { opacity: 0; stroke-dashoffset: 0; }
+    }
+    @keyframes laser-flash {
+        0% { opacity: 0; }
+        30% { opacity: 1; }
+        100% { opacity: 0; }
+    }
+
+    .mount-badge { position: absolute; bottom: 8px; right: 0; background: #550055; border: 1px solid #ff00ff; color: #fff; font-size: 8px; font-weight: bold; padding: 0 2px; border-radius: 3px; z-index: 15; }
+    .hp-bar { font-size: 8px; color: #ddd; background: rgba(0,0,0,0.7); padding: 0 3px; border-radius: 2px; position: absolute; bottom: 1px; z-index: 10; }
+
+    #bottom-panel { width: 100%; max-width: 440px; background: #22222e; border: 2px solid #444; border-radius: 6px; padding: 8px; text-align: left; }
+    .cmd-row { display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+    
+    button { flex: 1; padding: 8px 4px; font-size: 11px; background: #3a3a4c; color: #fff; border: 1px solid #666; cursor: pointer; border-radius: 4px; text-align: center; font-weight: bold; transition: 0.1s; }
+    button:hover { background: #55556c; }
+    button:disabled { opacity: 0.3; cursor: not-allowed; background: #222; }
+    
+    button.sp-btn { background: #550055; border-color: #aa00aa; color: #ff88ff; }
+    button.sp-btn:hover { background: #880088; }
+    button.sp-btn.ready-exec { background: #cc0000; border-color: #ffff00; color: #ffff00; animation: blink 0.8s infinite alternate; }
+    @keyframes blink { from { opacity: 1; } to { opacity: 0.7; } }
+
+    #sp-desc-box { background: #111118; border: 1px solid #aa00aa; border-radius: 4px; padding: 6px; font-size: 11px; color: #ddaadd; margin-bottom: 6px; min-height: 36px; display: none; line-height: 1.3; }
+    #log-box { background: #111118; border: 1px solid #444; border-radius: 4px; padding: 6px; font-size: 10px; min-height: 50px; max-height: 50px; overflow-y: hidden; display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; }
+    .log-entry { margin: 0; line-height: 1.2; font-weight: bold; }
+    .log-p1 { color: #4da6ff; }
+    .log-p2 { color: #ffaa00; }
+
+    #ai-panel { width: 100%; max-width: 440px; margin: 8px auto 0 auto; background: #181822; border: 1px solid #00ccff; border-radius: 6px; padding: 6px; font-size: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .ai-btn { padding: 4px 8px; font-size: 10px; background: #004466; color: #00ffff; border: 1px solid #00ffff; border-radius: 3px; cursor: pointer; }
+    .ai-btn:hover { background: #006699; }
+</style>
+</head>
+<body>
+
+<h1>ガンダム風 スパロボ将棋</h1>
+
+<div id="mode-select">
+    <button class="mode-btn active-mode" id="btn-pvp" onclick="changeGameMode('pvp')">2P 対人戦</button>
+    <button class="mode-btn" id="btn-pve" onclick="changeGameMode('pve')">1P vs CPU戦</button>
+    <button class="mode-btn boss-mode-btn" id="btn-boss" onclick="changeGameMode('boss')">😈 VS 大王戦</button>
+</div>
+
+<div id="audio-controls">
+    <button class="audio-btn" id="btn-bgm" onclick="toggleBGM()">🎵 BGM: ON</button>
+    <button class="audio-btn" id="btn-se" onclick="toggleSE()">🔊 SE: ON</button>
+</div>
+
+<div id="boss-hp-container">
+    <div id="boss-name">👑 破滅的大王（HP: <span id="boss-hp-val">10</span> / 10）</div>
+    <div id="boss-hp-bar-bg"><div id="boss-hp-bar-fill"></div></div>
+    <div id="boss-status-text">⚡ ニアバースト：🔥 発動可能！</div>
+</div>
+
+<div id="info-panel">1P（青）のターンです。</div>
+
+<div id="main-layout">
+    <div class="captured-container" id="cap-box-2">
+        <div class="captured-label" id="cap-label-2">後手持ち駒</div>
+        <div class="captured-list" id="cap-list-2"></div>
+    </div>
+
+    <div id="game-container">
+        <div id="board">
+            <div id="board-cells"></div>
+            <div id="board-overlay">盤面操作不可（持ち駒選択中）</div>
+            <div id="cutin-overlay"><div id="cutin-text">金</div></div>
+            <svg id="laser-svg"></svg>
+        </div>
+    </div>
+
+    <div class="captured-container" id="cap-box-1">
+        <div class="captured-label" id="cap-label-1">先手持ち駒</div>
+        <div class="captured-list" id="cap-list-1"></div>
+    </div>
+
+    <div id="bottom-panel">
+        <div class="cmd-row">
+            <button id="btn-attack" disabled onclick="setMode('attack')">⚔️ 通常攻撃</button>
+            <button id="btn-special" class="sp-btn" disabled onclick="clickSpecialButton('shield')">🛡️ シールド</button>
+            <button id="btn-spear" class="sp-btn" disabled onclick="clickSpecialButton('spear')">🗡️ スピア</button>
+            <button id="btn-cancel" style="flex: 0.6;" onclick="resetSelection()">解除</button>
+        </div>
+        
+        <div id="sp-desc-box"></div>
+        <div id="log-box"></div>
+    </div>
+
+    <!-- AI学習データ管理パネル -->
+    <div id="ai-panel">
+        <div>🧠 CPU記憶: <span id="ai-memory-count" style="color:#00ffff; font-weight:bold;">0</span> 件</div>
+        <div style="display:flex; gap:4px;">
+            <button class="ai-btn" onclick="exportBrainFile()">💾 保存</button>
+            <button class="ai-btn" onclick="document.getElementById('import-file-input').click()">📂 読込</button>
+            <button class="ai-btn" style="background:#550000; border-color:#ff3333;" onclick="resetCpuBrain()">🧹 リセット</button>
+        </div>
+        <input type="file" id="import-file-input" style="display:none;" accept=".json" onchange="importBrainFile(event)">
+    </div>
+</div>
+
+<script src="tactics.js"></script>
+<script>
+// --- 定数定義 ---
+const PIECE_TYPES = {
+    FU: { name: "歩", pName: "と", hp: 2, spName: "ハイパー・ダブルバースト", desc: "【連射技】紫色の敵対象を選択して即発動！50%×2連射。" },
+    KY: { name: "香", pName: "成香", hp: 2, spName: "バックブースト・エスケープ", desc: "【緊急移動】真後ろの紫色の移動マスを選択して即発動！" },
+    KE: { name: "桂", pName: "成桂", hp: 2, spName: "オメガ・ナイト・ナイトメア", desc: "【奇襲攻撃】紫色の敵対象を選択して即発動！八方跳躍！" },
+    GI: { name: "銀", pName: "成銀", hp: 2, spName: "ロングレンジ・ビームスピア", desc: "【長槍突撃】紫色の敵対象を選択して即発動！斜め2マス先攻撃！" },
+    KI: { name: "金", pName: "金", hp: 2, spName: "アルティメットシールド", spName2: "アルティメットスピア", desc: "【切り札選択】1対局中に『シールド(防衛バリア)』か『スピア(貫通ダメージ1)』のどちらか1回だけ発動可能！" },
+    KA: { name: "角", pName: "馬", hp: 1, spName: "ドッキング・リチャージ", desc: "【時限合体】選択した持ち駒をクリックして合体！5手後にエネルギー切れで分離！" },
+    HI: { name: "飛", pName: "龍", hp: 1, spName: "メガ粒子全貫通マップ兵器", desc: "【1ターンチャージ】龍（成駒）限定！『発動する』ボタンでチャージ！次ターン自動砲撃！" },
+    OU: { name: "玉", pName: "玉", hp: 2, spName: "次元跳躍・ランダムテレポート", desc: "【次元跳躍】『発動する』ボタンを押して盤上のランダムな空きマスへ即時ワープ！" },
+    BOSS: { name: "大王", pName: "大王", hp: 10, spName: "ニアバースト", desc: "【ニアバースト】全方向2マス内の対象全員に1ダメージ！" },
+    SHOGUN: { name: "将軍", pName: "将軍", hp: 6, spName: "プチバースト", desc: "【プチバースト】全方向1マス内の敵全員に1ダメージ！" },
+    SOLDIER: { name: "兵", pName: "兵", hp: 2, spName: "イージス・全方位シールド", desc: "【防衛バリア】周囲の味方機に3ターン無敵バリアを展開！" }
+};
+
+const PIECE_IMAGE_MAP = {
+    FU: { normal: "fu.png", prom: "prom_fu.png" },
+    KY: { normal: "ky.png", prom: "prom_ky.png" },
+    KE: { normal: "ke.png", prom: "prom_ke.png" },
+    GI: { normal: "gi.png", prom: "prom_gi.png" },
+    KI: { normal: "ki.png", prom: "prom_ki.png" },
+    KA: { normal: "ka.png", prom: "prom_ka.png" },
+    HI: { normal: "hi.png", prom: "prom_hi.png" },
+    OU: { normal: "ou.png", prom: "prom_ou.png" },
+    BOSS: { normal: "boss.png", prom: "boss.png" },
+    SHOGUN: { normal: "shogun.png", prom: "shogun.png" },
+    SOLDIER: { normal: "soldier.png", prom: "soldier.png" }
+};
+
+const PIECE_VALUES = {
+    OU: 10000, HI: 1200, KA: 1000, KI: 800, GI: 650,
+    KE: 450, KY: 350, FU: 100, SOLDIER: 600, SHOGUN: 1500, BOSS: 10000
+};
+
+const DOCKING_GUIDE_TEXT = "<strong>【ドッキング・リチャージ】</strong><br>持ち駒一覧から合体させる駒を選択してください。";
+
+const PSTO_MID = [
+    [10, 10, 10, 10, 10, 10, 10, 10, 10],
+    [ 8,  9,  9,  9,  9,  9,  9,  9,  8],
+    [ 6,  7,  8,  8,  8,  8,  8,  7,  6],
+    [ 4,  5,  6,  7,  7,  7,  6,  5,  4],
+    [ 2,  3,  4,  5,  5,  5,  4,  3,  2],
+    [ 1,  2,  3,  4,  4,  4,  3,  2,  1],
+    [ 0,  0,  1,  1,  1,  1,  1,  0,  0],
+    [ 0,  0,  0,  0,  0,  0,  0,  0,  0],
+    [ 0,  0,  0,  0,  0,  0,  0,  0,  0]
+];
+
+// --- グローバル変数 ---
+let audioCtx = null;
+let bgmMuted = false;
+let seMuted = false;
+let bgmTimer = null;
+let bgmStep = 0;
+
+let gameMode = 'pvp';
+let boardState = [];
+let itemState = []; 
+let totalTurnsCount = 0; 
+let captured = { 1: [], 2: [] };
+let turn = 1; 
+let selected = null; 
+let selectedCapIndex = null; 
+let actionMode = 'move'; 
+let targets = []; 
+let isSpecialReady = false; 
+let selectedSpecialType = 'shield'; 
+let isHorseDockingMode = false; 
+let lastMoveTo = null; 
+let logs = [];
+let bossCoolDown = 0; 
+let lastCheckState = false;
+let isProcessingTurn = false; 
+
+let currentTargetCastle = null;
+let cpuPreviousPosMap = {};
+let boardCellsInitialized = false;
+
+let cpuBrainData = { badPositions: [] };
+
+function loadBrainFromStorage() {
+    try {
+        const saved = localStorage.getItem('sp_shogi_cpu_brain');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed && Array.isArray(parsed.badPositions)) {
+                cpuBrainData = parsed;
+            }
+        }
+    } catch (e) { console.log("Storage load error:", e); }
+    updateAiUi();
+}
+
+function saveBrainToStorage() {
+    try {
+        localStorage.setItem('sp_shogi_cpu_brain', JSON.stringify(cpuBrainData));
+    } catch (e) { console.log("Storage save error:", e); }
+    updateAiUi();
+}
+
+function updateAiUi() {
+    const el = document.getElementById('ai-memory-count');
+    if (el) el.innerText = cpuBrainData.badPositions.length;
+}
+
+function learnFromCapture(targetPiece, atR, atC, attackerPiece) {
+    if (targetPiece.p !== 2) return; 
+    let penaltyVal = (PIECE_VALUES[targetPiece.t] || 500) * 1.5;
+    cpuBrainData.badPositions.push({ pieceType: targetPiece.t, r: atR, c: atC, killer: attackerPiece.t, penalty: penaltyVal });
+    saveBrainToStorage();
+}
+
+function exportBrainFile() {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(cpuBrainData, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", "cpu_brain.json");
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+}
+
+function importBrainFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const loadedData = JSON.parse(e.target.result);
+            if (loadedData && Array.isArray(loadedData.badPositions)) {
+                cpuBrainData = loadedData;
+                saveBrainToStorage();
+                alert("🧠 学習データをロードしました！");
+            } else alert("❌ ファイル形式が正しくありません。");
+        } catch (err) { alert("❌ 学習ファイルの読み込みに失敗しました。"); }
+    };
+    reader.readAsText(file);
+}
+
+function resetCpuBrain() {
+    if (confirm("CPUの学習記憶を消去して初期状態に戻しますか？")) {
+        cpuBrainData = { badPositions: [] };
+        saveBrainToStorage();
+        alert("🧹 CPUの記憶をリセットしました。");
+    }
+}
+
+function preloadImages() {
+    Object.keys(PIECE_IMAGE_MAP).forEach(key => {
+        let data = PIECE_IMAGE_MAP[key];
+        let img1 = new Image(); img1.src = `image/${data.normal}`;
+        let img2 = new Image(); img2.src = `image/${data.prom}`;
+    });
+}
+
+function createRobotPieceSVG(text, player, isPromoted, isBoss) {
+    let color = "#4da6ff"; 
+    if (player === 2) color = "#ffaa00"; 
+    if (isBoss) color = "#ff0055"; 
+    if (isPromoted) color = "#ff3333"; 
+    let transformAttr = (player === 2) ? 'transform="rotate(180 50 50)"' : '';
+    return `
+    <svg class="robot-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <g ${transformAttr}>
+            <polygon points="50,5 92,25 92,75 50,95 8,75 8,25" fill="#181822" stroke="#444455" stroke-width="4"/>
+            <polygon points="50,10 86,28 86,72 50,90 14,72 14,28" fill="#222230" stroke="${color}" stroke-width="2" opacity="0.6"/>
+            <circle cx="50" cy="50" r="30" fill="#11111a" stroke="${color}" stroke-width="2"/>
+            <text x="50" y="62" font-family="sans-serif" font-weight="900" font-size="36" fill="${color}" text-anchor="middle">${text}</text>
+        </g>
+    </svg>`;
+}
+
+function createPieceHTML(piece) {
+    let typeData = PIECE_IMAGE_MAP[piece.t];
+    let fileName = piece.promoted ? typeData.prom : typeData.normal;
+    let imgPath = `image/${fileName}`;
+    let nameStr = piece.promoted ? PIECE_TYPES[piece.t].pName : PIECE_TYPES[piece.t].name;
+    let fallbackSvg = createRobotPieceSVG(nameStr, piece.p, piece.promoted, piece.t === 'BOSS');
+    return `
+        <img class="piece-img" src="${imgPath}" alt="${nameStr}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+        <div class="fallback-svg-container" style="display:none; width:100%; height:100%;">${fallbackSvg}</div>`;
+}
+
+// 🔊 SE用AudioContextの初期化（画面どこかをクリックで自動起動）
+function initAudioOnFirstClick() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } else if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+}
+
+// 画面クリックでSE準備 ＆ BGM開始
+window.addEventListener('click', () => {
+    initAudioOnFirstClick();
+    startBGM();
+}, { once: true });
+
+function playSE(type) {
+    initAudioOnFirstClick(); // SEを鳴らす際にも安全に起動
+    if (!audioCtx || seMuted) return;
+    
+    try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        if (type === 'select') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.05);
+            gain.gain.setValueAtTime(0.08, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+            osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+        } else if (type === 'slash') {
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(1200, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.2);
+            gain.gain.setValueAtTime(0.25, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+            osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+        } else if (type === 'cutin') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(987.77, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(3951.07, audioCtx.currentTime + 0.3);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+            osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.35);
+        } else if (type === 'stomp') {
+            osc.type = 'triangle'; osc.frequency.setValueAtTime(120, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.3);
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+        } else if (type === 'hit') {
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.2);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+            osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+        } else if (type === 'heavy_hit') {
+            const osc2 = audioCtx.createOscillator(); const gain2 = audioCtx.createGain();
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(180, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.5);
+            osc2.type = 'square'; osc2.frequency.setValueAtTime(120, audioCtx.currentTime); osc2.frequency.exponentialRampToValueAtTime(15, audioCtx.currentTime + 0.5);
+            gain.gain.setValueAtTime(0.4, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            gain2.gain.setValueAtTime(0.3, audioCtx.currentTime); gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            osc.connect(gain); osc2.connect(gain2); gain.connect(audioCtx.destination); gain2.connect(audioCtx.destination);
+            osc.start(); osc2.start(); osc.stop(audioCtx.currentTime + 0.5); osc2.stop(audioCtx.currentTime + 0.5);
+        } else if (type === 'special' || type === 'heal') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(300, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.3);
+            gain.gain.setValueAtTime(0.12, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+        } else if (type === 'beam') {
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(800, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.25);
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+            osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.25);
+        } else if (type === 'miss') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(300, audioCtx.currentTime); osc.frequency.setValueAtTime(200, audioCtx.currentTime + 0.08);
+            gain.gain.setValueAtTime(0.08, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+            osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+        }
+    } catch(e) { console.log(e); }
+}
+
+function toggleBGM() {
+    bgmMuted = !bgmMuted;
+    const btn = document.getElementById('btn-bgm');
+    
+    if (bgmAudio) {
+        if (bgmMuted) {
+            bgmAudio.pause();
+        } else {
+            bgmAudio.play().catch(e => console.log(e));
+        }
+    }
+    
+    if (bgmMuted) { 
+        btn.innerText = "🎵 BGM: OFF"; 
+        btn.classList.add('muted'); 
+    } else { 
+        btn.innerText = "🎵 BGM: ON"; 
+        btn.classList.remove('muted');
+}}
+
+function toggleSE() {
+    seMuted = !seMuted;
+    const btn = document.getElementById('btn-se');
+    if (seMuted) { btn.innerText = "🔊 SE: OFF"; btn.classList.add('muted'); } 
+    else { btn.innerText = "🔊 SE: ON"; btn.classList.remove('muted'); }
+}
+
+let bgmAudio = null; // mp3用のオーディオオブジェクト
+
+function startBGM() {
+    if (!bgmAudio) {
+        bgmAudio = new Audio('audio/bgm_normal.mp3');
+        bgmAudio.loop = true; // ループ再生設定
+        bgmAudio.volume = 0.3; // BGMの音量（0.0 ～ 1.0 で調整可能）
+    }
+    
+    if (!bgmMuted) {
+        bgmAudio.play().catch(e => console.log("BGM再生待ち:", e));
+    }
+}
+
+function playSE(type) {
+    if (!audioCtx || seMuted) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    if (type === 'select') {
+        osc.type = 'sine'; osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.05);
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+        osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+    } else if (type === 'slash') {
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(1200, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.25, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+        osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+    } else if (type === 'cutin') {
+        osc.type = 'sine'; osc.frequency.setValueAtTime(987.77, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(3951.07, audioCtx.currentTime + 0.3);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+        osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.35);
+    } else if (type === 'stomp') {
+        osc.type = 'triangle'; osc.frequency.setValueAtTime(120, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.3);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+    } else if (type === 'hit') {
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+        osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+    } else if (type === 'heavy_hit') {
+        const osc2 = audioCtx.createOscillator(); const gain2 = audioCtx.createGain();
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(180, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.5);
+        osc2.type = 'square'; osc2.frequency.setValueAtTime(120, audioCtx.currentTime); osc2.frequency.exponentialRampToValueAtTime(15, audioCtx.currentTime + 0.5);
+        gain.gain.setValueAtTime(0.4, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+        gain2.gain.setValueAtTime(0.3, audioCtx.currentTime); gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+        osc.connect(gain); osc2.connect(gain2); gain.connect(audioCtx.destination); gain2.connect(audioCtx.destination);
+        osc.start(); osc2.start(); osc.stop(audioCtx.currentTime + 0.5); osc2.stop(audioCtx.currentTime + 0.5);
+    } else if (type === 'special' || type === 'heal') {
+        osc.type = 'sine'; osc.frequency.setValueAtTime(300, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.3);
+        gain.gain.setValueAtTime(0.12, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+    } else if (type === 'beam') {
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(800, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.25);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+        osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.25);
+    } else if (type === 'miss') {
+        osc.type = 'sine'; osc.frequency.setValueAtTime(300, audioCtx.currentTime); osc.frequency.setValueAtTime(200, audioCtx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+    }
+}
+
+function isMatchingMountedArea(mountedPiece, dr, dc, dir) {
+    if (mountedPiece === 'FU') return Math.abs(dr) === 1 && dc === 0;
+    if (mountedPiece === 'KY' || mountedPiece === 'KE') return Math.abs(dr) === 2 && Math.abs(dc) === 2;
+    if (mountedPiece === 'KI' || mountedPiece === 'GI') return Math.abs(dr) <= 1 && Math.abs(dc) <= 1 && !(dr === 0 && dc === 0);
+    if (mountedPiece === 'KA') return Math.abs(dr) === Math.abs(dc) && dr !== 0;
+    return false;
+}
+
+function getPieceTiltAngle(pieceType, deltaR, deltaC, player) {
+    let forwardR = player === 1 ? -1 : 1;
+    let r = deltaR * forwardR; 
+    let c = deltaC * (player === 1 ? 1 : -1); 
+    if (pieceType === 'FU' || pieceType === 'KY') return 0;
+    if (pieceType === 'KE') return c > 0 ? 22.5 : -22.5;
+    if (pieceType === 'GI' || pieceType === 'KA') {
+        if (r > 0 && c > 0) return 45; if (r > 0 && c < 0) return -45;   
+        if (r < 0 && c > 0) return 135; if (r < 0 && c < 0) return -135;  
+        return 0; 
+    }
+    if (pieceType === 'KI' || pieceType === 'HI' || pieceType === 'OU' || pieceType === 'SOLDIER' || pieceType === 'SHOGUN' || pieceType === 'BOSS') {
+        if (r > 0 && c === 0) return 0; if (r < 0 && c === 0) return 180;  
+        if (r === 0 && c > 0) return 90; if (r === 0 && c < 0) return -90;  
+        if (r > 0 && c > 0) return 45; if (r > 0 && c < 0) return -45;
+        if (r < 0 && c > 0) return 135; if (r < 0 && c < 0) return -135;
+    }
+    return 0;
+}
+
+function animatePieceMove(fromR, fromC, toR, toC, isCapture, callback) {
+    const fromCell = document.getElementById(`cell-${fromR}-${fromC}`);
+    if (!fromCell) { if (callback) callback(); return; }
+    const pieceEl = fromCell.querySelector('.piece');
+    if (!pieceEl) { if (callback) callback(); return; }
+    const piece = boardState[fromR] ? boardState[fromR][fromC] : null;
+    const pieceType = piece ? piece.t : 'FU';
+    const player = piece ? piece.p : 1;
+    const deltaR = toR - fromR, deltaC = toC - fromC;
+    const angleDeg = getPieceTiltAngle(pieceType, deltaR, deltaC, player);
+
+    pieceEl.style.transition = 'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)';
+    pieceEl.style.transform = `scale(1.25) translateY(-14px) rotate(${angleDeg}deg)`;
+
+    setTimeout(() => {
+        const boardEl = document.getElementById('board');
+        const cellSize = boardEl ? (boardEl.getBoundingClientRect().width / 9) : 40;
+        const moveX = deltaC * cellSize, moveY = deltaR * cellSize;
+        pieceEl.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+        pieceEl.style.transform = `translate(${moveX}px, ${moveY}px) scale(1.2) translateY(-14px) rotate(${angleDeg}deg)`;
+        setTimeout(() => {
+            pieceEl.style.transition = 'transform 0.25s cubic-bezier(0.5, 0, 0.75, 0)';
+            pieceEl.style.transform = `translate(${moveX}px, ${moveY}px) scale(1.0) translateY(0px) rotate(0deg)`;
+            setTimeout(() => { if (callback) callback(); }, 250);
+        }, 400);
+    }, 250);
+}
+
+function calculateTargetsPure(origin, mode) {
+    if (!origin || !boardState || !boardState[origin.r] || !boardState[origin.r][origin.c]) return [];
+    const p = boardState[origin.r][origin.c];
+    const r = origin.r, c = origin.c;
+    const dir = p.p === 1 ? -1 : 1;
+    let resTargets = [], vectors = [], isRanged = false;
+
+    if (p.t === 'BOSS') {
+        vectors = [[-1,0],[1,0],[0,-1],[0,1]];
+        vectors.forEach(v => {
+            for(let step=1; step<=2; step++) {
+                let tr = r + v[0] * step, tc = c + v[1] * step;
+                if (tr < 0 || tr >= 9 || tc < 0 || tc >= 9) break;
+                const targetPiece = boardState[tr] ? boardState[tr][tc] : null;
+                if (mode === 'move') {
+                    if (targetPiece) { resTargets.push({ r: tr, c: tc, blocked: true }); break; }
+                    else resTargets.push({ r: tr, c: tc, blocked: false });
+                } else if (mode === 'attack') {
+                    if (targetPiece) {
+                        if (targetPiece.p === p.p) { resTargets.push({ r: tr, c: tc, blocked: true }); break; }
+                        else { resTargets.push({ r: tr, c: tc, blocked: false }); break; }
+                    }
+                }
+            }
+        });
+        return resTargets;
+    }
+
+    if (p.promoted && p.t !== 'HI' && p.t !== 'KA' && p.t !== 'KI' && p.t !== 'SOLDIER' && p.t !== 'SHOGUN') {
+        vectors = [[dir, -1], [dir, 0], [dir, 1], [0, -1], [0, 1], [-dir, 0]];
+    } else {
+        if (p.t === 'FU') vectors = [[dir, 0]];
+        if (p.t === 'KY') { vectors = [[dir, 0]]; isRanged = true; }
+        if (p.t === 'KE') vectors = [[dir * 2, -1], [dir * 2, 1]];
+        if (p.t === 'GI') vectors = [[dir, -1], [dir, 0], [dir, 1], [-dir, -1], [-dir, 1]];
+        if (p.t === 'KI' || p.t === 'SOLDIER' || p.t === 'SHOGUN') vectors = [[dir, -1], [dir, 0], [dir, 1], [0, -1], [0, 1], [-dir, 0]];
+        if (p.t === 'OU') vectors = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+        if (p.t === 'HI') { vectors = [[-1,0],[1,0],[0,-1],[0,1]]; isRanged = true; }
+        if (p.t === 'KA') { vectors = [[-1,-1],[-1,1],[1,-1],[1,1]]; isRanged = true; }
+    }
+
+    if (mode === 'special') {
+        if (p.t === 'KY') { vectors = [[-dir, 0]]; isRanged = true; }
+        else if (p.t === 'KE') { vectors = [[-dir * 2, -1], [-dir * 2, 1], [dir * 2, -1], [dir * 2, 1], [-dir, -2], [-dir, 2], [dir, -2], [dir, 2]]; isRanged = false; }
+        else if (p.t === 'GI') { vectors = [[dir*2, -2], [dir*2, 2], [-dir*2, -2], [-dir*2, 2]]; isRanged = false; }
+        else if (p.t === 'KI') {
+            if (selectedSpecialType === 'spear') { vectors = [[dir, -1], [dir, 0], [dir, 1], [0, -1], [0, 1], [-dir, 0]]; isRanged = false; }
+            else { resTargets.push({ r: r, c: c, blocked: false }); return resTargets; }
+        }
+        else if (p.t === 'HI') {
+            // 🐉 龍のメガ粒子砲：発動前に上下左右の直線マス全てを照射範囲(紫色)として表示！
+            const directions = [[-1,0],[1,0],[0,-1],[0,1]];
+            directions.forEach(d => {
+                for (let step = 1; step <= 8; step++) {
+                    let tr = r + d[0] * step;
+                    let tc = c + d[1] * step;
+                    if (tr >= 0 && tr < 9 && tc >= 0 && tc < 9) {
+                        resTargets.push({ r: tr, c: tc, blocked: false });
+                    }
+                }
+            });
+            return resTargets;
+        }
+        else if (p.t === 'KA' || p.t === 'OU' || p.t === 'SHOGUN') { resTargets.push({ r: r, c: c, blocked: false }); return resTargets; }
+    }
+
+    vectors.forEach(v => {
+        let step = 1;
+        while (true) {
+            let tr = r + v[0] * step, tc = c + v[1] * step;
+            if (tr < 0 || tr >= 9 || tc < 0 || tc >= 9) break;
+            const targetPiece = boardState[tr] ? boardState[tr][tc] : null;
+            if (mode === 'move') {
+                if (targetPiece) { resTargets.push({ r: tr, c: tc, blocked: true }); break; }
+                else resTargets.push({ r: tr, c: tc, blocked: false });
+            } else if (mode === 'attack') {
+                let dr = tr - r, dc = tc - c;
+                let isHeavy = p.mountedPiece ? isMatchingMountedArea(p.mountedPiece, dr, dc, dir) : false;
+                if (targetPiece) {
+                    if (targetPiece.p === p.p) { resTargets.push({ r: tr, c: tc, blocked: true }); break; }
+                    else { resTargets.push({ r: tr, c: tc, blocked: false, isHeavy }); break; }
+                }
+            } else if (mode === 'special') {
+                if (p.t === 'KY') {
+                    if (targetPiece) { resTargets.push({ r: tr, c: tc, blocked: true }); break; }
+                    else resTargets.push({ r: tr, c: tc, blocked: false });
+                } else if (p.t === 'SOLDIER') { if (targetPiece && targetPiece.p === p.p) resTargets.push({ r: tr, c: tc, blocked: false }); }
+                else { if (targetPiece && targetPiece.p !== p.p) { resTargets.push({ r: tr, c: tc, blocked: false }); break; } }
+            }
+            if (!isRanged) break;
+            step++;
+        }
+    });
+
+    if (p.promoted || (p.t === 'KA' && p.mountedPiece)) {
+        let extraVectors = [];
+        if (p.t === 'HI' && p.promoted) extraVectors = [[-1,-1],[-1,1],[1,-1],[1,1]];
+        if (p.t === 'KA' && p.promoted && p.mountedPiece !== 'HI') extraVectors = [[-1,0],[1,0],[0,-1],[0,1]];
+        if (p.t === 'KA' && p.mountedPiece === 'HI') extraVectors = [[-1,0],[1,0],[0,-1],[0,1]];
+
+        extraVectors.forEach(v => {
+            let tr = r + v[0], tc = c + v[1];
+            if (tr >= 0 && tr < 9 && tc >= 0 && tc < 9) {
+                const targetPiece = boardState[tr] ? boardState[tr][tc] : null;
+                let dr = tr - r, dc = tc - c;
+                let isHeavy = p.mountedPiece ? isMatchingMountedArea(p.mountedPiece, dr, dc, dir) : false;
+                if (mode === 'move') {
+                    if (!targetPiece) resTargets.push({ r: tr, c: tc, blocked: false });
+                    else resTargets.push({ r: tr, c: tc, blocked: true });
+                } else if (mode === 'attack' || mode === 'special') {
+                    if (targetPiece) {
+                        if (targetPiece.p !== p.p) resTargets.push({ r: tr, c: tc, blocked: false, isHeavy });
+                        else resTargets.push({ r: tr, c: tc, blocked: true });
+                    }
+                }
+            }
+        });
+    }
+    return resTargets;
+}
+
+function calculateTargets(origin, mode) { targets = calculateTargetsPure(origin, mode); }
+
+function isTileAttackedByEnemy(tr, tc, targetPlayer) {
+    let enemyPlayer = targetPlayer === 1 ? 2 : 1;
+    for (let er = 0; er < 9; er++) {
+        for (let ec = 0; ec < 9; ec++) {
+            let ep = boardState[er] ? boardState[er][ec] : null;
+            if (ep && ep.p === enemyPlayer) {
+                let enemyTargets = calculateTargetsPure({ r: er, c: ec }, 'attack');
+                if (enemyTargets.some(t => t.r === tr && t.c === tc && !t.blocked)) return true;
+            }
+        }
+    }
+    return false;
+}
+
+function checkKingsUnderAttack() {
+    let checkedPositions = [];
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            let p = boardState[r] ? boardState[r][c] : null;
+            if (p && (p.t === 'OU' || p.t === 'BOSS') && p.hp === 1) {
+                if (isTileAttackedByEnemy(r, c, p.p)) checkedPositions.push({ r, c });
+            }
+        }
+    }
+    return checkedPositions;
+}
+
+function getTileCoverCount(tr, tc, player) {
+    let count = 0;
+    for (let er = 0; er < 9; er++) {
+        for (let ec = 0; ec < 9; ec++) {
+            let ep = boardState[er] ? boardState[er][ec] : null;
+            if (ep && ep.p === player) {
+                let atkTargets = calculateTargetsPure({ r: er, c: ec }, 'attack');
+                if (atkTargets.some(t => t.r === tr && t.c === tc)) count++;
+            }
+        }
+    }
+    return count;
+}
+
+function getPenetratingCoverCount(tr, tc, player) {
+    let count = 0;
+    for (let er = 0; er < 9; er++) {
+        for (let ec = 0; ec < 9; ec++) {
+            let ep = boardState[er] ? boardState[er][ec] : null;
+            if (ep && ep.p === player) {
+                let dr = tr - er, dc = tc - ec;
+                let isRangedLine = false;
+                
+                if (ep.t === 'HI' && (er === tr || ec === tc)) isRangedLine = true;
+                if (ep.t === 'KA' && Math.abs(dr) === Math.abs(dc)) isRangedLine = true;
+                if (ep.t === 'KY' && ec === tc && ((player === 1 && tr < er) || (player === 2 && tr > er))) isRangedLine = true;
+
+                if (isRangedLine) {
+                    count++;
+                } else {
+                    let atkTargets = calculateTargetsPure({ r: er, c: ec }, 'attack');
+                    if (atkTargets.some(t => t.r === tr && t.c === tc)) count++;
+                }
+            }
+        }
+    }
+    return count;
+}
+
+function isKingCheckmated(player) {
+    let kingPos = null;
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            let p = boardState[r] ? boardState[r][c] : null;
+            if (p && p.p === player && (p.t === 'OU' || p.t === 'BOSS') && p.hp === 1) kingPos = { r, c };
+        }
+    }
+    if (!kingPos) return false;
+    if (!isTileAttackedByEnemy(kingPos.r, kingPos.c, player)) return false;
+
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            let p = boardState[r] ? boardState[r][c] : null;
+            if (p && p.p === player) {
+                let moves = calculateTargetsPure({ r, c }, 'move');
+                let attacks = calculateTargetsPure({ r, c }, 'attack');
+                let allMoves = [...moves, ...attacks].filter(m => !m.blocked);
+
+                for (let m of allMoves) {
+                    let savedTarget = boardState[m.r][m.c];
+                    boardState[m.r][m.c] = p; boardState[r][c] = null;
+                    let newKingR = (p.t === 'OU' || p.t === 'BOSS') ? m.r : kingPos.r;
+                    let newKingC = (p.t === 'OU' || p.t === 'BOSS') ? m.c : kingPos.c;
+                    let stillChecked = isTileAttackedByEnemy(newKingR, newKingC, player);
+                    boardState[r][c] = p; boardState[m.r][m.c] = savedTarget;
+                    if (!stillChecked) return false;
+                }
+            }
+        }
+    }
+    return true;
+}
+
+function isEnemyThreatening(r, c) {
+    for (let er = 0; er < 9; er++) {
+        for (let ec = 0; ec < 9; ec++) {
+            let ep = boardState[er] ? boardState[er][ec] : null;
+            if (ep && ep.p === 1) {
+                let dr = Math.abs(er - r), dc = Math.abs(ec - c);
+                if (dr <= 3 && dc <= 3) return true;
+                if (ep.t === 'HI' && (er === r || ec === c)) return true;
+                if (ep.t === 'KA' && dr === dc) return true;
+            }
+        }
+    }
+    return false;
+}
+
+function shouldCpuUseShield(r, c) {
+    let hasAdjacentEnemy = false;
+    for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+            if (dr === 0 && dc === 0) continue;
+            let tr = r + dr, tc = c + dc;
+            if (tr >= 0 && tr < 9 && tc >= 0 && tc < 9) {
+                let ep = boardState[tr] ? boardState[tr][tc] : null;
+                if (ep && ep.p === 1) { hasAdjacentEnemy = true; break; }
+            }
+        }
+        if (hasAdjacentEnemy) break;
+    }
+    if (!hasAdjacentEnemy) return false;
+
+    for (let tr = 0; tr < 9; tr++) {
+        for (let tc = 0; tc < 9; tc++) {
+            let myPiece = boardState[tr] ? boardState[tr][tc] : null;
+            if (myPiece && myPiece.p === 2) {
+                if (myPiece.t === 'FU' || myPiece.t === 'KE' || myPiece.t === 'KY') continue;
+                if (isTileAttackedByEnemy(tr, tc, 2)) return true;
+            }
+        }
+    }
+    return false;
+}
+
+function evaluateActionMid(from, to, type) {
+    let score = 0;
+    let actor = boardState[from.r][from.c];
+    let targetPiece = boardState[to.r] ? boardState[to.r][to.c] : null;
+
+    if (type === 'attack' || type === 'special') {
+        if (targetPiece && targetPiece.p === 1) {
+            let targetValue = PIECE_VALUES[targetPiece.t] || 100;
+            if (targetPiece.promoted) targetValue += 200;
+            score += (targetPiece.hp <= 1) ? Math.floor(targetValue * 2.0) : Math.floor(targetValue * 1.2);
+            
+            if (targetPiece.t === 'FU') score += 200;
+            if (targetPiece.t === 'OU' || targetPiece.t === 'BOSS') score += 5000;
+        }
+    }
+
+    if (type === 'move' || type === 'attack') {
+        score += PSTO_MID[to.r][to.c] * 2;
+
+        if (totalTurnsCount <= 30 && currentTargetCastle) {
+            let target = currentTargetCastle.targets.find(t => t.piece === actor.t);
+            if (target) {
+                if ((actor.t === 'KI' || actor.t === 'GI') && from.c <= 2 && target.pos.c >= 4) {
+                    score -= 200; 
+                } else {
+                    let currentDist = Math.abs(from.r - target.pos.r) + Math.abs(from.c - target.pos.c);
+                    let newDist = Math.abs(to.r - target.pos.r) + Math.abs(to.c - target.pos.c);
+                    if (newDist < currentDist) score += 80; 
+                }
+            }
+        }
+
+        if (actor.t === 'KY' && totalTurnsCount <= 20) score -= 100; 
+
+        if (actor.t === 'OU' && (from.r === 1 && from.c === 7 || from.r === 0 && from.c === 6 || from.r === 0 && from.c === 5)) {
+            score -= 800; 
+        }
+
+        let coverCount = getTileCoverCount(to.r, to.c, 2);
+        if (coverCount >= 1) score += 50;
+
+        if (actor.t === 'FU') {
+            score += 30;
+            let enemyAhead = (to.r < 8 && boardState[to.r + 1] && boardState[to.r + 1][to.c] && boardState[to.r + 1][to.c].p === 1);
+            if (enemyAhead) score += 50;
+            score += (to.r) * 10; 
+        }
+
+        let currentlyThreatened = isEnemyThreatening(from.r, from.c);
+        let futureThreatened = isEnemyThreatening(to.r, to.c);
+        let priorityWeight = PIECE_VALUES[actor.t] || 100;
+
+        if (currentlyThreatened) {
+            if (!futureThreatened) score += 300 + (priorityWeight * 0.5); 
+            else if (to.r < from.r && coverCount >= 1) score += 150 + (priorityWeight * 0.2); 
+        }
+
+        if (futureThreatened && type !== 'attack' && actor.t !== 'FU') {
+            score -= (200 + priorityWeight * 0.5);
+        }
+
+        if (!actor.promoted && to.r >= 6) score += 100;
+    }
+
+    if (cpuBrainData && cpuBrainData.badPositions) {
+        cpuBrainData.badPositions.forEach(bad => {
+            if (bad.pieceType === actor.t && bad.r === to.r && bad.c === to.c) {
+                score -= Math.floor(bad.penalty * 0.5); 
+            }
+        });
+    }
+
+    let key = `${from.r},${from.c}_${actor.t}`;
+    if (cpuPreviousPosMap[key] && cpuPreviousPosMap[key].r === to.r && cpuPreviousPosMap[key].c === to.c) {
+        score -= 300; 
+    }
+
+    score += Math.random() * 5;
+    return score;
+}
+
+function setupBoardCells() {
+    let boardCellsEl = document.getElementById('board-cells');
+    if (!boardCellsEl || boardCellsInitialized) return;
+    boardCellsEl.innerHTML = '';
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.id = `cell-${r}-${c}`;
+            cell.onclick = () => handleCellClick(r, c);
+            boardCellsEl.appendChild(cell);
+        }
+    }
+    boardCellsInitialized = true;
+}
+
+function renderBoard() {
+    setupBoardCells();
+    const checkedKingPositions = checkKingsUnderAttack();
+
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            const cell = document.getElementById(`cell-${r}-${c}`);
+            if (!cell) continue;
+
+            const piece = boardState[r] ? boardState[r][c] : null;
+            cell.className = 'cell';
+
+            let hasItem = itemState.some(it => it.r === r && it.c === c);
+            if (hasItem) cell.classList.add('item-pill');
+            if (selected && selected.r === r && selected.c === c) cell.classList.add('selected');
+            if (piece && piece.shield > 0) cell.classList.add('shielded');
+            if (piece && piece.isCharging) cell.classList.add('charging');
+            if (lastMoveTo && lastMoveTo.r === r && lastMoveTo.c === c) cell.classList.add('last-move-to');
+            if (checkedKingPositions.some(pos => pos.r === r && pos.c === c)) cell.classList.add('check-warning');
+
+            const target = targets.find(t => t.r === r && t.c === c);
+            if (target) {
+                if (actionMode === 'move' || actionMode === 'drop') cell.classList.add('movable');
+                if (actionMode === 'attack') {
+                    if (target.isHeavy) cell.classList.add('attackable-heavy');
+                    else cell.classList.add('attackable');
+                }
+                if (actionMode === 'special') cell.classList.add('specialable');
+                if (target.blocked) cell.classList.add('blocked');
+            }
+
+            cell.innerHTML = '';
+            if (piece) {
+                const pEl = document.createElement('div');
+                let classes = `piece p${piece.p}`;
+                if (piece.t === 'BOSS') classes += " boss";
+                if (piece.promoted) classes += " promoted";
+                pEl.className = classes;
+                pEl.innerHTML = createPieceHTML(piece);
+
+                if(piece.mountedPiece) {
+                    const badge = document.createElement('div');
+                    badge.className = 'mount-badge';
+                    badge.innerText = `[${PIECE_TYPES[piece.mountedPiece].name}:${piece.dockTimer || 5}]`;
+                    pEl.appendChild(badge);
+                }
+                const hpEl = document.createElement('div');
+                hpEl.className = 'hp-bar';
+                hpEl.innerText = `HP:${piece.hp}`;
+                cell.appendChild(pEl);
+                cell.appendChild(hpEl);
+            }
+        }
+    }
+    renderCaptured();
+    updateBossHpBar();
+    updateAiUi();
+}
+
+function initGame() {
+    preloadImages(); 
+    loadBrainFromStorage(); 
+
+    let bossHpContainer = document.getElementById('boss-hp-container');
+    if (bossHpContainer) bossHpContainer.style.display = (gameMode === 'boss') ? 'block' : 'none';
+    
+    bossCoolDown = 0;
+    totalTurnsCount = 0;
+    itemState = [];
+    lastCheckState = false;
+    cpuPreviousPosMap = {};
+    isProcessingTurn = false;
+
+    if (gameMode === 'boss') {
+        boardState = [
+            [null, null, null, {t:'SHOGUN',p:2,hp:6}, {t:'BOSS',p:2,hp:10}, {t:'SOLDIER',p:2,hp:2}, null, null, null],
+            [null, null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null, null],
+            [{t:'FU',p:1},{t:'FU',p:1},{t:'FU',p:1},{t:'FU',p:1},{t:'FU',p:1},{t:'FU',p:1},{t:'FU',p:1},{t:'FU',p:1},{t:'FU',p:1}],
+            [null, {t:'KA',p:1,hp:1}, null, null, null, null, null, {t:'HI',p:1,hp:1}, null],
+            [{t:'KY',p:1},{t:'KE',p:1},{t:'GI',p:1},{t:'KI',p:1},{t:'OU',p:1},{t:'KI',p:1},{t:'GI',p:1},{t:'KE',p:1},{t:'KY',p:1}]
+        ];
+    } else {
+        boardState = [
+            [{t:'KY',p:2},{t:'KE',p:2},{t:'GI',p:2},{t:'KI',p:2},{t:'OU',p:2},{t:'KI',p:2},{t:'GI',p:2},{t:'KE',p:2},{t:'KY',p:2}],
+            [null, {t:'HI',p:2,hp:1}, null, null, null, null, null, {t:'KA',p:2,hp:1}, null],
+            [{t:'FU',p:2},{t:'FU',p:2},{t:'FU',p:2},{t:'FU',p:2},{t:'FU',p:2},{t:'FU',p:2},{t:'FU',p:2},{t:'FU',p:2},{t:'FU',p:2}],
+            [null,null,null,null,null,null,null,null,null],
+            [null,null,null,null,null,null,null,null,null],
+            [null,null,null,null,null,null,null,null,null],
+            [{t:'FU',p:1},{t:'FU',p:1},{t:'FU',p:1},{t:'FU',p:1},{t:'FU',p:1},{t:'FU',p:1},{t:'FU',p:1},{t:'FU',p:1},{t:'FU',p:1}],
+            [null, {t:'KA',p:1,hp:1}, null, null, null, null, null, {t:'HI',p:1,hp:1}, null],
+            [{t:'KY',p:1},{t:'KE',p:1},{t:'GI',p:1},{t:'KI',p:1},{t:'OU',p:1},{t:'KI',p:1},{t:'GI',p:1},{t:'KE',p:1},{t:'KY',p:1}]
+        ];
+    }
+
+    captured = { 1: [], 2: [] };
+    for(let r=0; r<9; r++){
+        for(let c=0; c<9; c++){
+            if(boardState[r][c]) {
+                let p = boardState[r][c];
+                if (p.hp === undefined) p.hp = PIECE_TYPES[p.t].hp;
+                p.promoted = false; p.spUsed = false; p.shield = 0; p.mountedPiece = null; p.isCharging = false;
+            }
+        }
+    }
+
+    turn = 1;
+    lastMoveTo = null;
+    logs = [];
+    updateBossHpBar();
+    renderLog();
+    resetSelection();
+    if (audioCtx) startBGM();
+}
+
+function updateBossHpBar() {
+    if (gameMode !== 'boss') return;
+    let bossHp = 0;
+    for(let r=0; r<9; r++){
+        for(let c=0; c<9; c++){
+            let p = boardState[r] ? boardState[r][c] : null;
+            if (p && p.t === 'BOSS') bossHp = p.hp;
+        }
+    }
+    let valEl = document.getElementById('boss-hp-val');
+    if (valEl) valEl.innerText = bossHp;
+    const pct = Math.max(0, (bossHp / 10) * 100);
+    const fillEl = document.getElementById('boss-hp-bar-fill');
+    if (fillEl) fillEl.style.width = pct + '%';
+
+    const statusEl = document.getElementById('boss-status-text');
+    if (statusEl) {
+        if (bossCoolDown === 0) {
+            statusEl.innerText = "⚡ ニアバースト：🔥 発動可能！";
+            statusEl.style.color = "#ff3300";
+        } else {
+            statusEl.innerText = `⚡ ニアバースト：⏳ チャージ中（あと ${bossCoolDown} ターン）`;
+            statusEl.style.color = "#aaa";
+        }
+    }
+}
+
+function changeGameMode(mode) {
+    playSE('select');
+    gameMode = mode;
+    const pvpBtn = document.getElementById('btn-pvp');
+    const pveBtn = document.getElementById('btn-pve');
+    const bossBtn = document.getElementById('btn-boss');
+    
+    // 🎛️ モード切り替え時にボタンのクラス（アクティブ表示）を更新
+    if (pvpBtn) pvpBtn.className = 'mode-btn ' + (mode === 'pvp' ? 'active-mode' : '');
+    if (pveBtn) pveBtn.className = 'mode-btn ' + (mode === 'pve' ? 'active-mode' : '');
+    if (bossBtn) bossBtn.className = 'mode-btn boss-mode-btn ' + (mode === 'boss' ? 'active-mode' : '');
+    initGame();
+}
+
+function addLog(player, text) {
+    logs.push({ player, text });
+    if (logs.length > 3) logs.shift();
+    renderLog();
+}
+
+function renderLog() {
+    let logBox = document.getElementById('log-box');
+    if (!logBox) return;
+    logBox.innerHTML = '';
+    logs.forEach(log => {
+        const p = document.createElement('p');
+        p.className = `log-entry ${log.player === 1 ? 'log-p1' : 'log-p2'}`;
+        p.innerText = log.text;
+        logBox.appendChild(p);
+    });
+}
+
+function playLaserEffect(fromR, fromC, toR, toC, isHeavy = false) {
+    const laserSvg = document.getElementById('laser-svg');
+    const boardEl = document.getElementById('board');
+    if (!laserSvg || !boardEl) return;
+    const boardRect = boardEl.getBoundingClientRect();
+    const cellWidth = boardRect.width / 9, cellHeight = boardRect.height / 9;
+    const x1 = fromC * cellWidth + cellWidth / 2, y1 = fromR * cellHeight + cellHeight / 2;
+    const x2 = toC * cellWidth + cellWidth / 2, y2 = toR * cellHeight + cellHeight / 2;
+
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", x1); line.setAttribute("y1", y1); line.setAttribute("x2", x2); line.setAttribute("y2", y2);
+    line.setAttribute("stroke-width", isHeavy ? "14" : "7");
+    line.setAttribute("class", `laser-line ${isHeavy ? 'heavy' : ''}`);
+    laserSvg.appendChild(line);
+    playSE('beam');
+    setTimeout(() => { laserSvg.innerHTML = ''; }, 350);
+}
+
+function playSaberSlashEffect(targetR, targetC) {
+    const laserSvg = document.getElementById('laser-svg');
+    const boardEl = document.getElementById('board');
+    if (!laserSvg || !boardEl) return;
+    laserSvg.innerHTML = '';
+    const boardRect = boardEl.getBoundingClientRect();
+    const cellWidth = boardRect.width / 9, cellHeight = boardRect.height / 9;
+
+    const centerX = targetC * cellWidth + cellWidth / 2;
+    const centerY = targetR * cellHeight + cellHeight / 2;
+
+    const x1 = centerX - cellWidth * 0.35;
+    const y1 = centerY - cellHeight * 0.35;
+    const x2 = centerX + cellWidth * 0.35;
+    const y2 = centerY + cellHeight * 0.35;
+
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", x1); line.setAttribute("y1", y1);
+    line.setAttribute("x2", x2); line.setAttribute("y2", y2);
+    line.setAttribute("stroke-width", "8"); line.setAttribute("class", "saber-line");
+    laserSvg.appendChild(line);
+    playSE('slash');
+    setTimeout(() => { laserSvg.innerHTML = ''; }, 350);
+}
+
+function playCutinEffect(pieceName, type = 'normal', callback = null) {
+    const cutinOverlay = document.getElementById('cutin-overlay');
+    const cutinText = document.getElementById('cutin-text');
+    if (!cutinOverlay || !cutinText) { if (callback) callback(); return; }
+    cutinText.innerText = pieceName; cutinText.className = '';
+    if (type === 'check') cutinText.classList.add('check-text');
+    else if (type === 'daho') cutinText.classList.add('daho-text');
+    cutinOverlay.style.display = 'flex';
+    playSE('cutin');
+    setTimeout(() => { cutinOverlay.style.display = 'none'; if (callback) callback(); }, 450);
+}
+
+function renderCaptured() {
+    [1, 2].forEach(p => {
+        const listEl = document.getElementById(`cap-list-${p}`);
+        const labelEl = document.getElementById(`cap-label-${p}`);
+        if (!listEl || !labelEl) return;
+        listEl.innerHTML = '';
+        let pLabel = (p === 1) ? "1P持ち駒" : ((gameMode === 'boss' || gameMode === 'pve') ? "敵持ち駒" : "2P持ち駒");
+        labelEl.innerText = pLabel;
+        let counts = {};
+        captured[p].forEach(type => { counts[type] = (counts[type] || 0) + 1; });
+
+        Object.keys(counts).forEach(type => {
+            const count = counts[type];
+            const origIndex = captured[p].indexOf(type);
+            const item = document.createElement('div');
+            item.className = 'cap-item';
+            if (isHorseDockingMode && turn === p) item.classList.add('selectable-dock');
+            else if (selectedCapIndex === origIndex && turn === p) item.classList.add('selected-cap');
+
+            let dummyPiece = { t: type, p: p, promoted: false };
+            item.innerHTML = createPieceHTML(dummyPiece);
+
+            if (count > 1) {
+                const countBadge = document.createElement('div');
+                countBadge.className = 'count-badge'; countBadge.innerText = `×${count}`;
+                item.appendChild(countBadge);
+            }
+
+            item.onclick = (e) => {
+                e.stopPropagation();
+                if (isProcessingTurn || ((gameMode === 'pve' || gameMode === 'boss') && turn === 2)) return;
+                if (turn === p) {
+                    playSE('select');
+                    if (isHorseDockingMode) executeHorseDocking(origIndex);
+                    else selectCapturedPiece(origIndex);
+                }
+            };
+            listEl.appendChild(item);
+        });
+    });
+}
+
+function hasPawnInColumn(player, col) {
+    for (let r = 0; r < 9; r++) {
+        let p = boardState[r] ? boardState[r][col] : null;
+        if (p && p.p === player && p.t === 'FU' && !p.promoted) return true;
+    }
+    return false;
+}
+
+function isInvalidDropPosition(player, pieceType, r) {
+    if (player === 1) {
+        if ((pieceType === 'FU' || pieceType === 'KY') && r === 0) return true;
+        if (pieceType === 'KE' && (r === 0 || r === 1)) return true;
+    } else {
+        if ((pieceType === 'FU' || pieceType === 'KY') && r === 8) return true;
+        if (pieceType === 'KE' && (r === 8 || r === 7)) return true;
+    }
+    return false;
+}
+
+function selectCapturedPiece(idx) {
+    if (isHorseDockingMode || isProcessingTurn) return;
+    selected = null; selectedCapIndex = idx; actionMode = 'drop'; isSpecialReady = false;
+    let spDescBox = document.getElementById('sp-desc-box');
+    if (spDescBox) spDescBox.style.display = 'none';
+    const pieceType = captured[turn][idx];
+    targets = [];
+    for(let r=0; r<9; r++){
+        for(let c=0; c<9; c++){
+            if(!boardState[r][c]) {
+                let isBlocked = false;
+                if (pieceType === 'FU' && hasPawnInColumn(turn, c)) isBlocked = true;
+                if (isInvalidDropPosition(turn, pieceType, r)) isBlocked = true;
+                targets.push({ r, c, blocked: isBlocked });
+            }
+        }
+    }
+    let infoEl = document.getElementById('info-panel');
+    if (infoEl) infoEl.innerText = `持ち駒【${PIECE_TYPES[pieceType].name}】を召喚する空きマスを選んでください。`;
+    renderBoard();
+}
+
+function playHitEffect(r, c) {
+    const cell = document.getElementById(`cell-${r}-${c}`);
+    if (cell) {
+        const effect = document.createElement('div');
+        effect.className = 'hit-effect';
+        cell.appendChild(effect);
+        setTimeout(() => effect.remove(), 300);
+    }
+}
+
+function playMissEffect(r, c) {
+    const cell = document.getElementById(`cell-${r}-${c}`);
+    if (cell) {
+        const effect = document.createElement('div');
+        effect.className = 'miss-effect'; effect.innerText = "MISS";
+        cell.appendChild(effect);
+        setTimeout(() => effect.remove(), 500);
+    }
+}
+
+function clickSpecialButton(spType = 'shield') {
+    if (!selected || isProcessingTurn) return;
+    const actor = boardState[selected.r][selected.c];
+    selectedSpecialType = spType;
+
+    if (actor.t === 'KA' && actor.promoted) {
+        if (captured[turn].length === 0) {
+            let infoEl = document.getElementById('info-panel');
+            if (infoEl) infoEl.innerText = "❌ 持ち駒がないため合体（必殺技）できません！";
+            return;
+        }
+        playSE('special');
+        startHorseDockingMode(actor);
+        return;
+    }
+
+    if (!isSpecialReady) {
+        calculateTargets(selected, 'special');
+        let validTargets = targets.filter(t => !t.blocked);
+        let isDirectExecPiece = (actor.t === 'KI' && spType === 'shield') || actor.t === 'SOLDIER' || actor.t === 'HI' || actor.t === 'OU';
+
+        if (!isDirectExecPiece && validTargets.length === 0) {
+            let infoEl = document.getElementById('info-panel');
+            if (infoEl) infoEl.innerText = "❌ 範囲内に必殺技を実行できる対象がいません！";
+            return;
+        }
+
+        playSE('special');
+        actionMode = 'special'; isSpecialReady = true;
+        let btnAttack = document.getElementById('btn-attack');
+        let spBtn = document.getElementById('btn-special');
+        let spearBtn = document.getElementById('btn-spear');
+        let infoEl = document.getElementById('info-panel');
+
+        if (isDirectExecPiece) {
+            if (btnAttack) btnAttack.disabled = true;
+            if (spBtn) { spBtn.className = 'sp-btn ready-exec'; spBtn.innerText = `⚡ 発動する（要確認）`; }
+            if (spearBtn) spearBtn.disabled = true;
+            if (infoEl) infoEl.innerText = `『発動する』ボタンを押して必殺技を起動してください！`;
+        } else {
+            if (btnAttack) btnAttack.disabled = true;
+            if (spBtn) { spBtn.disabled = true; spBtn.className = 'sp-btn'; spBtn.innerText = `🔥 マスを選択中...`; }
+            if (spearBtn) spearBtn.disabled = true;
+
+            if (infoEl) {
+                if (actor.t === 'KY') infoEl.innerText = `【盤上の紫色の移動マスをクリックして即発動！】`;
+                else if (actor.t === 'KI' && spType === 'spear') infoEl.innerText = `【アルティメットスピア: 攻撃対象を選択して一撃貫通！】`;
+                else infoEl.innerText = `【盤上の紫色の対象をクリックして即発動！】`;
+            }
+        }
+
+        let spNameStr = (actor.t === 'KI' && selectedSpecialType === 'spear') ? PIECE_TYPES.KI.spName2 : PIECE_TYPES[actor.t].spName;
+        let spDescBox = document.getElementById('sp-desc-box');
+        if (spDescBox) {
+            spDescBox.innerHTML = `<strong>【${spNameStr}】</strong><br>${PIECE_TYPES[actor.t].desc}`;
+            spDescBox.style.display = 'block';
+        }
+        renderBoard();
+    } else executeSpecialAction();
+}
+
+function startHorseDockingMode(actor) {
+    isHorseDockingMode = true;
+    let boardOverlay = document.getElementById('board-overlay');
+    let spDescBox = document.getElementById('sp-desc-box');
+    let infoEl = document.getElementById('info-panel');
+    if (boardOverlay) boardOverlay.style.display = 'flex';
+    if (spDescBox) { spDescBox.innerHTML = DOCKING_GUIDE_TEXT; spDescBox.style.display = 'block'; }
+    if (infoEl) infoEl.innerText = "【どの持ち駒を選びますか？】持ち駒をクリックしてください（解除ボタンでキャンセル）";
+    renderBoard();
+}
+
+function executeHorseDocking(capIndex) {
+    if (isProcessingTurn) return;
+    isProcessingTurn = true;
+    const actor = boardState[selected.r][selected.c];
+    const capPieceType = captured[turn][capIndex];
+    const capPieceName = PIECE_TYPES[capPieceType].name;
+    
+    captured[turn].splice(capIndex, 1);
+    actor.mountedPiece = capPieceType; actor.spUsed = true; actor.dockTimer = 5; // 🐎 5手時限カウント設定
+    lastMoveTo = { r: selected.r, c: selected.c };
+    
+    playCutinEffect(PIECE_TYPES[actor.t].spName, 'normal', () => {
+        playHitEffect(selected.r, selected.c);
+        playSE('special');
+        addLog(turn, `馬が【${capPieceName}】と合体！(残り5手)`);
+        let infoEl = document.getElementById('info-panel');
+        if (infoEl) infoEl.innerText = `【${PIECE_TYPES.KA.spName}】${capPieceName}と合体完了！固有パターンへ覚醒！`;
+        isProcessingTurn = false; isHorseDockingMode = false;
+        let boardOverlay = document.getElementById('board-overlay');
+        if (boardOverlay) boardOverlay.style.display = 'none';
+        setTimeout(endTurn, 300);
+    });
+}
+
+function executeSpecialAction(targetCell = null) {
+    if (isProcessingTurn) return;
+    isProcessingTurn = true;
+    const actor = boardState[selected.r][selected.c];
+    
+    let spText = (actor.t === 'KI' && selectedSpecialType === 'spear') ? PIECE_TYPES.KI.spName2 : PIECE_TYPES[actor.t].spName;
+
+    playCutinEffect(spText, 'normal', () => {
+        if (targetCell) executeSpecial(actor, targetCell.r, targetCell.c);
+        else {
+            targets.filter(t => !t.blocked).forEach(t => playHitEffect(t.r, t.c));
+            executeSpecial(actor, selected.r, selected.c);
+        }
+    });
+}
+
+function checkItemDrop() {
+    if (totalTurnsCount > 0 && totalTurnsCount % 30 === 0) {
+        let emptyCells = [];
+        for(let r=0; r<9; r++){
+            for(let c=0; c<9; c++){
+                if(!boardState[r][c] && !itemState.some(it => it.r === r && it.c === c)) emptyCells.push({r, c});
+            }
+        }
+        if (emptyCells.length > 0) {
+            let randCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+            itemState.push(randCell);
+            playSE('special');
+            addLog(1, `💊物資補給！マス[${randCell.r+1},${randCell.c+1}]に回復カプセルが届いた！`);
+            let infoEl = document.getElementById('info-panel');
+            if (infoEl) infoEl.innerText = `💊物資ドロップ！回復カプセルが出現しました！`;
+        }
+    }
+}
+
+function checkPickupItem(r, c, piece) {
+    let itemIdx = itemState.findIndex(it => it.r === r && it.c === c);
+    if (itemIdx !== -1) {
+        itemState.splice(itemIdx, 1);
+        let maxHp = PIECE_TYPES[piece.t].hp;
+        if (piece.hp < maxHp) {
+            piece.hp += 1; playSE('heal');
+            addLog(piece.p, `${PIECE_TYPES[piece.t].name}が回復カプセル💊を獲得！HPが1回復！`);
+        } else {
+            playSE('select');
+            addLog(piece.p, `${PIECE_TYPES[piece.t].name}がカプセル💊を回収・除去した！`);
+        }
+    }
+}
+
+function handleCellClick(r, c) {
+    if (isHorseDockingMode || isProcessingTurn) return;
+    const piece = boardState[r] ? boardState[r][c] : null;
+
+    if (piece && piece.p !== turn) {
+        let nameStr = piece.promoted ? PIECE_TYPES[piece.t].pName : PIECE_TYPES[piece.t].name;
+        let spStatus = piece.spUsed ? "【必殺技: 使用済み ❌】" : "【必殺技: 未使用 🔥】";
+        let infoEl = document.getElementById('info-panel');
+        if (infoEl) infoEl.innerText = `敵機【${nameStr}】 (HP:${piece.hp}) ${spStatus}`;
+    }
+
+    if ((gameMode === 'pve' || gameMode === 'boss') && turn === 2) return;
+
+    if (actionMode === 'drop' && selectedCapIndex !== null) {
+        const target = targets.find(t => t.r === r && t.c === c);
+        if (target) {
+            if (target.blocked) {
+                let infoEl = document.getElementById('info-panel');
+                if (infoEl) infoEl.innerText = "❌ 反則（二歩、または移動不能位置）のためここには打てません！";
+                return;
+            }
+            isProcessingTurn = true; playSE('select');
+            const pieceType = captured[turn].splice(selectedCapIndex, 1)[0];
+            let newPiece = { t: pieceType, p: turn, hp: PIECE_TYPES[pieceType].hp, promoted: false, spUsed: false, shield: 0, mountedPiece: null, isCharging: false };
+            boardState[r][c] = newPiece;
+            checkPickupItem(r, c, newPiece);
+            lastMoveTo = { r, c };
+            addLog(turn, `${turn === 1 ? '1P' : '2P'}が持ち駒【${PIECE_TYPES[pieceType].name}】を召喚！`);
+            let infoEl = document.getElementById('info-panel');
+            if (infoEl) infoEl.innerText = `持ち駒【${PIECE_TYPES[pieceType].name}】を召喚しました！`;
+            endTurn();
+        }
+        return;
+    }
+
+    if (!selected || (piece && piece.p === turn && actionMode !== 'attack' && actionMode !== 'special')) {
+        if (piece && piece.p === turn) {
+            playSE('select'); selectedCapIndex = null; selected = { r, c }; actionMode = 'move'; isSpecialReady = false;
+            let spDescBox = document.getElementById('sp-desc-box');
+            if (spDescBox) spDescBox.style.display = 'none';
+            let btnAttack = document.getElementById('btn-attack');
+            if (btnAttack) btnAttack.disabled = false;
+
+            let canUseSpecial = false;
+            if (piece.t === 'KI' || piece.t === 'SOLDIER' || piece.t === 'SHOGUN') canUseSpecial = !piece.spUsed;
+            else if (piece.t === 'OU') canUseSpecial = !piece.spUsed;
+            else if (piece.t === 'HI') canUseSpecial = (piece.promoted && !piece.spUsed); // 🐉 龍（成駒）のみ限定！
+            else if (piece.t === 'KA') canUseSpecial = (piece.promoted && !piece.spUsed && captured[turn].length > 0);
+            else canUseSpecial = (piece.promoted && !piece.spUsed);
+
+            let spBtn = document.getElementById('btn-special');
+            let spearBtn = document.getElementById('btn-spear');
+
+            if (piece.t === 'KI') {
+                if (spBtn) { spBtn.style.display = 'inline-block'; spBtn.disabled = !canUseSpecial; spBtn.className = 'sp-btn'; spBtn.innerText = `🛡️ シールド` + (piece.spUsed ? "(済)" : ""); }
+                if (spearBtn) { spearBtn.style.display = 'inline-block'; spearBtn.disabled = !canUseSpecial; spearBtn.className = 'sp-btn'; spearBtn.innerText = `🗡️ スピア` + (piece.spUsed ? "(済)" : ""); }
+            } else {
+                if (spBtn) { spBtn.style.display = 'inline-block'; spBtn.disabled = !canUseSpecial; spBtn.className = 'sp-btn'; spBtn.innerText = `🔥 ${PIECE_TYPES[piece.t].spName}` + (piece.spUsed ? " (済)" : ""); }
+                if (spearBtn) spearBtn.style.display = 'none';
+            }
+
+            let spStatusSelf = piece.spUsed ? "【必殺技: 済】" : "【必殺技: 未使用】";
+            let infoEl = document.getElementById('info-panel');
+            if (infoEl) infoEl.innerText = `【${piece.promoted ? PIECE_TYPES[piece.t].pName : PIECE_TYPES[piece.t].name}】選択中 ${spStatusSelf}`;
+            calculateTargets(selected, 'move');
+            renderBoard();
+        }
+        return;
+    }
+
+    if (actionMode === 'special') {
+        const actor = boardState[selected.r][selected.c];
+        if (actor.t === 'FU' || actor.t === 'KE' || actor.t === 'GI' || actor.t === 'KY' || (actor.t === 'KI' && selectedSpecialType === 'spear')) {
+            const target = targets.find(t => t.r === r && t.c === c);
+            if (target && !target.blocked) executeSpecialAction({ r, c });
+        }
+        return;
+    }
+
+    const target = targets.find(t => t.r === r && t.c === c);
+    if (target) {
+        if (target.blocked) {
+            let infoEl = document.getElementById('info-panel');
+            if (infoEl) infoEl.innerText = "❌ 障害物または射線上のため実行できません！";
+            return;
+        }
+
+        const actor = boardState[selected.r][selected.c];
+
+        if (actionMode === 'move') {
+            isProcessingTurn = true; playSE('select');
+            let fromR = selected.r, fromC = selected.c;
+            lastMoveTo = { r, c };
+            const actorName = actor.promoted ? PIECE_TYPES[actor.t].pName : PIECE_TYPES[actor.t].name;
+            
+            animatePieceMove(fromR, fromC, r, c, false, () => {
+                boardState[r][c] = actor; boardState[fromR][fromC] = null;
+                checkPickupItem(r, c, actor);
+                let promotedMsg = checkPromotion(fromR, r, actor);
+                addLog(turn, `${actorName}が移動。${promotedMsg}`);
+                endTurn();
+            });
+        } 
+        else if (actionMode === 'attack') {
+            isProcessingTurn = true;
+            const targetPiece = boardState[r] ? boardState[r][c] : null;
+            let willCapture = (targetPiece && targetPiece.hp <= ((actor.mountedPiece && target.isHeavy) ? 2 : 1));
+            let dist = Math.max(Math.abs(r - selected.r), Math.abs(c - selected.c));
+            let isRangedAttack = (dist >= 2 && (actor.t === 'HI' || actor.t === 'KA' || actor.t === 'KY'));
+
+            if (willCapture) {
+                animatePieceMove(selected.r, selected.c, r, c, true, () => {
+                    playSaberSlashEffect(r, c); playHitEffect(r, c);
+                    executeAttack(actor, r, c, false, target.isHeavy);
+                    setTimeout(endTurn, 350);
+                });
+            } else {
+                if (isRangedAttack) {
+                    playLaserEffect(selected.r, selected.c, r, c, target.isHeavy);
+                    if (target.isHeavy) playSE('heavy_hit'); else playSE('hit');
+                    playHitEffect(r, c);
+                    executeAttack(actor, r, c, false, target.isHeavy);
+                    setTimeout(endTurn, 350);
+                } else {
+                    playSaberSlashEffect(r, c); playHitEffect(r, c);
+                    if (target.isHeavy) playSE('heavy_hit'); else playSE('hit');
+                    executeAttack(actor, r, c, false, target.isHeavy);
+                    setTimeout(endTurn, 350);
+                }
+            }
+        }
+    }
+}
+
+function checkPromotion(fromR, toR, piece) {
+    if (!piece.promoted && piece.t !== 'KI' && piece.t !== 'SOLDIER' && piece.t !== 'SHOGUN' && piece.t !== 'BOSS') {
+        const isEnemyZone = (p, r) => (p === 1 && r <= 2) || (p === 2 && r >= 6);
+        if (isEnemyZone(piece.p, fromR) || isEnemyZone(piece.p, toR)) {
+            let doPromote = true;
+            if (turn === 1 || (turn === 2 && gameMode === 'pvp')) {
+                doPromote = confirm("成りますか？（キャンセルでそのまま）");
+            }
+            if (doPromote) {
+                playSE('special'); piece.promoted = true;
+                let infoEl = document.getElementById('info-panel');
+                if (infoEl) infoEl.innerText += " 成りました！必殺技解放！";
+                return "成りました！";
+            } else return "成らず。";
+        }
+    }
+    return "";
+}
+
+function checkGameOver(targetPiece) {
+    if (targetPiece.t === 'BOSS') {
+        setTimeout(() => { alert(`🎉 撃破！【破滅的大王】を討伐しました！プレイヤーの完全勝利！`); initGame(); }, 100);
+        return true;
+    }
+    if (targetPiece.t === 'OU') {
+        setTimeout(() => { alert(`【${targetPiece.p === 1 ? (gameMode === 'pve' ? 'CPU' : '2P') : '1P'}】の勝利！`); initGame(); }, 100);
+        return true;
+    }
+    return false;
+}
+
+function executeAttack(actor, tr, tc, isSpecial, isHeavy = false, isSpearBypass = false) {
+    const targetPiece = boardState[tr] ? boardState[tr][tc] : null;
+    if (!targetPiece) return;
+
+    const actorName = actor.promoted ? PIECE_TYPES[actor.t].pName : PIECE_TYPES[actor.t].name;
+    const targetName = targetPiece.promoted ? PIECE_TYPES[targetPiece.t].pName : PIECE_TYPES[targetPiece.t].name;
+
+    if (targetPiece.shield > 0 && !isSpearBypass) {
+        addLog(turn, `${actorName}の攻撃！${targetName}のシールドに防がれた！`);
+        let infoEl = document.getElementById('info-panel');
+        if (infoEl) infoEl.innerText = "🛡️ シールドにより攻撃を防がれた！";
+        return;
+    }
+
+    let dmg = (isSpearBypass) ? 1 : ((actor.t === 'KA' && actor.mountedPiece === 'HI') ? 1 : (isHeavy ? 2 : 1));
+    let skillName = isSpecial ? (isSpearBypass ? "アルティメットスピア" : PIECE_TYPES[actor.t].spName) : (dmg === 2 ? "強撃(ダメージ2)" : "攻撃");
+
+    if (targetPiece.p === 2) learnFromCapture(targetPiece, tr, tc, actor);
+
+    targetPiece.hp -= dmg;
+    lastMoveTo = { r: tr, c: tc };
+    let dist = Math.max(Math.abs(tr - (selected ? selected.r : tr)), Math.abs(tc - (selected ? selected.c : tc)));
+
+    if (targetPiece.hp <= 0) {
+        let fromR = selected ? selected.r : tr;
+        if (checkGameOver(targetPiece)) return;
+        
+        if (targetPiece.p === actor.p) {
+            let enemyPlayer = actor.p === 1 ? 2 : 1;
+            let capType = (targetPiece.t === 'SOLDIER' || targetPiece.t === 'SHOGUN') ? 'KI' : targetPiece.t;
+            captured[enemyPlayer].push(capType);
+            if (targetPiece.mountedPiece) captured[enemyPlayer].push(targetPiece.mountedPiece);
+
+            addLog(turn, `激怒！誤射された${targetName}がむかついて敵に寝返った！`);
+            let infoEl = document.getElementById('info-panel');
+            if (infoEl) infoEl.innerText = `誤射！【${targetName}】が裏切って相手の持ち駒になりました！`;
+            boardState[tr][tc] = null;
+        } else {
+            if (actor.t === 'BOSS') {
+                addLog(2, `大王の攻撃！${targetName}は消滅した…（持ち駒不可）`);
+                let infoEl = document.getElementById('info-panel');
+                if (infoEl) infoEl.innerText = `大王の恐怖！【${targetName}】は永久に消滅した…！`;
+                boardState[tr][tc] = null;
+            } else if ((actor.t === 'HI' || actor.t === 'FU') && isSpecial) {
+                addLog(turn, `${actorName}の${skillName}！${targetName}を撃破！`);
+                let capType = (targetPiece.t === 'SOLDIER' || targetPiece.t === 'SHOGUN') ? 'KI' : targetPiece.t;
+                captured[actor.p].push(capType);
+                if (targetPiece.mountedPiece) captured[actor.p].push(targetPiece.mountedPiece);
+                boardState[tr][tc] = null;
+                let infoEl = document.getElementById('info-panel');
+                if (infoEl) infoEl.innerText = `${actorName}の遠距離射撃！${targetName}を遠距離消滅させた！`;
+            } else if (actor.t === 'KA' && actor.mountedPiece === 'HI' && dist >= 2) {
+                addLog(turn, `${actorName}のオールレンジ狙撃！${targetName}を遠距離撃破！`);
+                let capType = (targetPiece.t === 'SOLDIER' || targetPiece.t === 'SHOGUN') ? 'KI' : targetPiece.t;
+                captured[actor.p].push(capType);
+                boardState[tr][tc] = null;
+                let infoEl = document.getElementById('info-panel');
+                if (infoEl) infoEl.innerText = `${actorName}の長距離砲撃！${targetName}を撃破（遠距離のため移動なし）！`;
+            } else {
+                addLog(turn, `${actorName}の${skillName}！${targetName}を拿捕（撃破）！`);
+                let capType = (targetPiece.t === 'SOLDIER' || targetPiece.t === 'SHOGUN') ? 'KI' : targetPiece.t;
+                captured[actor.p].push(capType);
+                if (targetPiece.mountedPiece) captured[actor.p].push(targetPiece.mountedPiece);
+                
+                boardState[tr][tc] = actor;
+                if (selected) boardState[selected.r][selected.c] = null;
+                
+                playCutinEffect("拿捕！", 'daho', () => {
+                    renderBoard(); playSE('stomp');
+                    const destCell = document.getElementById(`cell-${tr}-${tc}`);
+                    if (destCell) {
+                        const pEl = destCell.querySelector('.piece');
+                        if (pEl) {
+                            pEl.classList.add('stomp-animation');
+                            setTimeout(() => pEl.classList.remove('stomp-animation'), 400);
+                        }
+                    }
+                });
+
+                checkPickupItem(tr, tc, actor);
+                checkPromotion(fromR, tr, actor);
+                let infoEl = document.getElementById('info-panel');
+                if (infoEl) infoEl.innerText = `${actorName}が【${targetName}】を拿捕して前進！`;
+            }
+        }
+    } else {
+        addLog(turn, `${actorName}の${skillName}！${targetName}に${dmg}のダメージ！`);
+        let infoEl = document.getElementById('info-panel');
+        if (infoEl) infoEl.innerText = `攻撃命中！【${targetName}】に${dmg}ダメージ！`;
+        renderBoard();
+    }
+}
+
+// 🐉 飛車のメガ粒子砲（自動発射・ダメージ判定完全復旧）
+function executeRyuMegaParticleBeam(r, c, actor) {
+    playSE('beam');
+    let directions = [[-1,0],[1,0],[0,-1],[0,1]]; // 上・下・左・右
+    
+    // 1. 極太レーザー演出
+    directions.forEach(d => {
+        let farR = Math.max(0, Math.min(8, r + d[0] * 8));
+        let farC = Math.max(0, Math.min(8, c + d[1] * 8));
+        playLaserEffect(r, c, farR, farC, true);
+    });
+
+    // 2. 💥 上下左右の列にいる者【全員（敵も味方も）】に貫通ダメージ！
+    directions.forEach(d => {
+        for (let step = 1; step <= 8; step++) {
+            let tr = r + d[0] * step;
+            let tc = c + d[1] * step;
+            if (tr < 0 || tr >= 9 || tc < 0 || tc >= 9) break;
+
+            let p = boardState[tr] ? boardState[tr][tc] : null;
+            if (p) {
+                playHitEffect(tr, tc);
+                if (p.shield > 0) {
+                    addLog(actor.p, `メガ粒子砲！${PIECE_TYPES[p.t].name}のシールドに阻まれた！`);
+                } else {
+                    if (p.p === 2) learnFromCapture(p, tr, tc, actor);
+                    p.hp -= 1;
+                    let pName = p.promoted ? PIECE_TYPES[p.t].pName : PIECE_TYPES[p.t].name;
+                    
+                    if (p.hp <= 0) {
+                        let capType = (p.t === 'SOLDIER' || p.t === 'SHOGUN') ? 'KI' : p.t;
+                        
+                        if (p.p === actor.p) {
+                            // 💥 味方を誤射で撃破した場合：激怒して相手の持ち駒へ！
+                            let enemyPlayer = actor.p === 1 ? 2 : 1;
+                            captured[enemyPlayer].push(capType);
+                            if (p.mountedPiece) captured[enemyPlayer].push(p.mountedPiece);
+                            addLog(actor.p, `⚠️ 誤射！味方の${pName}がメガ粒子砲に巻き込まれて消滅！敵の持ち駒になった！`);
+                        } else {
+                            // ⚔️ 敵を撃破した場合
+                            captured[actor.p].push(capType);
+                            if (p.mountedPiece) captured[actor.p].push(p.mountedPiece);
+                            addLog(actor.p, `メガ粒子砲！${pName}を貫通撃破！`);
+                        }
+                        boardState[tr][tc] = null;
+                    } else {
+                        addLog(actor.p, `メガ粒子砲！${pName}に1ダメージ！`);
+                    }
+                }
+            }
+        }
+    });
+    
+    renderBoard();
+    addLog(actor.p, `💥 充填完了！メガ粒子全貫通マップ兵器が自動掃射された！`);
+}
+
+function executeSpecial(actor, tr, tc) {
+    const actorName = actor.promoted ? PIECE_TYPES[actor.t].pName : PIECE_TYPES[actor.t].name;
+
+    if (actor.t === 'FU') {
+        actor.spUsed = true;
+        const targetPiece = boardState[tr] ? boardState[tr][tc] : null;
+        if (!targetPiece) return;
+        const targetName = targetPiece.promoted ? PIECE_TYPES[targetPiece.t].pName : PIECE_TYPES[targetPiece.t].name;
+
+        if (targetPiece.shield > 0) {
+            playSE('miss');
+            addLog(turn, `ダブルバースト発動！${targetName}のシールドに遮られた！`);
+            let infoEl = document.getElementById('info-panel');
+            if (infoEl) infoEl.innerText = "🛡️ シールドによりダブルバーストが完全に防がれた！";
+            setTimeout(endTurn, 300);
+            return;
+        }
+
+        let hit1 = Math.random() < 0.5;
+        if (hit1) {
+            playLaserEffect(selected.r, selected.c, tr, tc); playHitEffect(tr, tc); playSE('hit');
+            if (targetPiece.p === 2) learnFromCapture(targetPiece, tr, tc, actor);
+            targetPiece.hp -= 1;
+            addLog(turn, `【と】ダブルバースト 1打目：HIT！（1ダメ）`);
+        } else {
+            playMissEffect(tr, tc); playSE('miss');
+            addLog(turn, `【と】ダブルバースト 1打目：MISS！`);
+        }
+        renderBoard();
+
+        setTimeout(() => {
+            if (targetPiece.hp > 0) {
+                let hit2 = Math.random() < 0.5;
+                if (hit2) {
+                    playLaserEffect(selected.r, selected.c, tr, tc); playHitEffect(tr, tc); playSE('hit');
+                    if (targetPiece.p === 2) learnFromCapture(targetPiece, tr, tc, actor);
+                    targetPiece.hp -= 1;
+                    addLog(turn, `【と】ダブルバースト 2打目：HIT！（1ダメ）`);
+                } else {
+                    playMissEffect(tr, tc); playSE('miss');
+                    addLog(turn, `【と】ダブルバースト 2打目：MISS！`);
+                }
+            }
+
+            if (targetPiece.hp <= 0) {
+                if (checkGameOver(targetPiece)) return;
+                addLog(turn, `ダブルバーストで${targetName}を遠距離撃破！`);
+                let capType = (targetPiece.t === 'SOLDIER' || targetPiece.t === 'SHOGUN') ? 'KI' : targetPiece.t;
+                captured[actor.p].push(capType);
+                if (targetPiece.mountedPiece) captured[actor.p].push(targetPiece.mountedPiece);
+                boardState[tr][tc] = null;
+            }
+            renderBoard();
+            setTimeout(endTurn, 300);
+        }, 500);
+
+        return;
+    } 
+    else if (actor.t === 'KY') {
+        actor.spUsed = true;
+        playSE('select');
+        let fromR = selected.r, fromC = selected.c;
+        animatePieceMove(fromR, fromC, tr, tc, false, () => {
+            boardState[tr][tc] = actor; boardState[fromR][fromC] = null;
+            lastMoveTo = { r: tr, c: tc };
+            playHitEffect(tr, tc);
+            checkPickupItem(tr, tc, actor); checkPromotion(fromR, tr, actor);
+            addLog(turn, `${actorName}の${PIECE_TYPES.KY.spName}！後方へ緊急移動！`);
+            let infoEl = document.getElementById('info-panel');
+            if (infoEl) infoEl.innerText = `【${PIECE_TYPES.KY.spName}】後方ブースト移動完了！`;
+            setTimeout(endTurn, 300);
+        });
+    }
+    else if (actor.t === 'KE' || actor.t === 'GI') {
+        actor.spUsed = true;
+        playLaserEffect(selected.r, selected.c, tr, tc, true);
+        playHitEffect(tr, tc); playSE('heavy_hit');
+        executeAttack(actor, tr, tc, true);
+        setTimeout(endTurn, 300);
+    }
+    else if (actor.t === 'SHOGUN') {
+        actor.spUsed = true;
+        playHitEffect(selected.r, selected.c); playSE('heavy_hit');
+        for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+                if (dr === 0 && dc === 0) continue;
+                let trArr = selected.r + dr, tcArr = selected.c + dc;
+                if (trArr >= 0 && trArr < 9 && tcArr >= 0 && tcArr < 9) {
+                    let p = boardState[trArr] ? boardState[trArr][tcArr] : null;
+                    if (p && p.p === 1) {
+                        if (p.shield > 0) addLog(turn, `プチバースト！${PIECE_TYPES[p.t].name}のシールドに防がれた！`);
+                        else {
+                            playHitEffect(trArr, tcArr);
+                            p.hp -= 1;
+                            if (p.hp <= 0) boardState[trArr][tcArr] = null;
+                        }
+                    }
+                }
+            }
+        }
+        addLog(turn, `将軍の【プチバースト】！近接範囲を破砕！`);
+        let infoEl = document.getElementById('info-panel');
+        if (infoEl) infoEl.innerText = `将軍の『プチバースト』発動！周囲1マスの敵にダメージ！`;
+        setTimeout(endTurn, 300);
+    }
+    else if (actor.t === 'KI') {
+        actor.spUsed = true;
+        if (selectedSpecialType === 'spear') {
+            playSaberSlashEffect(tr, tc); playHitEffect(tr, tc); playSE('heavy_hit');
+            executeAttack(actor, tr, tc, true, false, true); 
+            setTimeout(endTurn, 300);
+        } else {
+            playSE('special');
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    let trArr = selected.r + dr, tcArr = selected.c + dc;
+                    if (trArr >= 0 && trArr < 9 && tcArr >= 0 && tcArr < 9) {
+                        let p = boardState[trArr] ? boardState[trArr][tcArr] : null;
+                        if (p && p.p === actor.p) { p.shield = 3; playHitEffect(trArr, tcArr); }
+                    }
+                }
+            }
+            addLog(turn, `${actorName}のアルティメットシールド！全味方に3ターンバリア展開！`);
+            let infoEl = document.getElementById('info-panel');
+            if (infoEl) infoEl.innerText = `【アルティメットシールド】全方位バリアシールド展開！（3ターン）`;
+            setTimeout(endTurn, 300);
+        }
+    }
+    else if (actor.t === 'SOLDIER') {
+        actor.spUsed = true;
+        playSE('special');
+        for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+                let trArr = selected.r + dr, tcArr = selected.c + dc;
+                if (trArr >= 0 && trArr < 9 && tcArr >= 0 && tcArr < 9) {
+                    let p = boardState[trArr] ? boardState[trArr][tcArr] : null;
+                    if (p && p.p === actor.p) { p.shield = 3; playHitEffect(trArr, tcArr); }
+                }
+            }
+        }
+        addLog(turn, `${actorName}の${PIECE_TYPES[actor.t].spName}！全味方に3ターンバリア展開！`);
+        let infoEl = document.getElementById('info-panel');
+        if (infoEl) infoEl.innerText = `【${PIECE_TYPES[actor.t].spName}】全方位バリアシールド展開！（3ターン）`;
+        setTimeout(endTurn, 300);
+    }
+    else if (actor.t === 'HI') {
+        // 🐉 1ターンチャージ仕様！
+        actor.spUsed = true;
+        actor.isCharging = true;
+        playSE('special');
+        addLog(turn, `【メガ粒子砲】エネルギー充填開始！次ターン生存で全貫通発射！`);
+        let infoEl = document.getElementById('info-panel');
+        if (infoEl) infoEl.innerText = `⚡ メガ粒子砲チャージ開始！生き残れば次のターンで自動砲撃！`;
+        setTimeout(endTurn, 300);
+    }
+    else if (actor.t === 'OU') {
+        actor.spUsed = true;
+        playSE('special');
+        let emptyCells = [];
+        for(let r=0; r<9; r++){
+            for(let c=0; c<9; c++){
+                if(!boardState[r][c]) emptyCells.push({r, c});
+            }
+        }
+        if(emptyCells.length > 0) {
+            let randCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+            boardState[randCell.r][randCell.c] = actor; boardState[selected.r][selected.c] = null;
+            lastMoveTo = { r: randCell.r, c: randCell.c };
+            playHitEffect(randCell.r, randCell.c);
+            checkPickupItem(randCell.r, randCell.c, actor);
+            addLog(turn, `玉の${PIECE_TYPES.OU.spName}！緊急回避テレポート！`);
+            let infoEl = document.getElementById('info-panel');
+            if (infoEl) infoEl.innerText = `【${PIECE_TYPES.OU.spName}】次元跳躍発動！`;
+        }
+        setTimeout(endTurn, 300);
+    }
+}
+
+function setMode(mode) {
+    actionMode = mode; selectedCapIndex = null; isSpecialReady = false; isHorseDockingMode = false;
+    let boardOverlay = document.getElementById('board-overlay');
+    let spDescBox = document.getElementById('sp-desc-box');
+    if (boardOverlay) boardOverlay.style.display = 'none';
+    if (spDescBox) spDescBox.style.display = 'none';
+    
+    let btnAttack = document.getElementById('btn-attack');
+    let spBtn = document.getElementById('btn-special');
+    let spearBtn = document.getElementById('btn-spear');
+    if (btnAttack) btnAttack.className = mode === 'attack' ? 'active-cmd' : '';
+    if (spBtn) spBtn.className = 'sp-btn';
+    if (spearBtn) spearBtn.className = 'sp-btn';
+
+    calculateTargets(selected, actionMode);
+    renderBoard();
+}
+
+function resetSelection() {
+    selected = null; selectedCapIndex = null; actionMode = 'move'; isSpecialReady = false; isHorseDockingMode = false;
+    targets = []; isProcessingTurn = false;
+    
+    let boardOverlay = document.getElementById('board-overlay');
+    let spDescBox = document.getElementById('sp-desc-box');
+    let btnAttack = document.getElementById('btn-attack');
+    let spBtn = document.getElementById('btn-special');
+    let spearBtn = document.getElementById('btn-spear');
+
+    if (boardOverlay) boardOverlay.style.display = 'none';
+    if (spDescBox) spDescBox.style.display = 'none';
+    if (btnAttack) { btnAttack.disabled = true; btnAttack.className = ''; }
+    if (spBtn) { spBtn.style.display = 'inline-block'; spBtn.disabled = true; spBtn.innerText = "🔥 必殺技未解放"; spBtn.className = 'sp-btn'; }
+    if (spearBtn) spearBtn.style.display = 'none';
+    
+    renderBoard();
+
+    const checkedKings = checkKingsUnderAttack();
+    const isSelfChecked = checkedKings.some(pos => {
+        let p = boardState[pos.r] ? boardState[pos.r][pos.c] : null;
+        return p && p.p === turn;
+    });
+
+    if (isSelfChecked && isKingCheckmated(turn)) {
+        let winnerStr = (turn === 1) ? ((gameMode === 'pve' || gameMode === 'boss') ? "CPU" : "2P") : "1P";
+        alert(`⚠️ 王手詰み！【${turn === 1 ? '1P' : '2P'}】は完全に詰みました！\n🎉 【${winnerStr}】の勝利！`);
+        initGame();
+        return;
+    }
+
+    if (isSelfChecked && !lastCheckState) {
+        lastCheckState = true;
+        playCutinEffect("王手！", 'check');
+    } else if (!isSelfChecked) lastCheckState = false;
+
+    let pStr = ((gameMode === 'pve' || gameMode === 'boss') && turn === 2) ? 'CPU思考中...' : `${turn === 1 ? '1P（青）' : '2P（黄）'}のターンです。`;
+    if (isSelfChecked) pStr = `⚠️【王手警報】玉（ボス）が狙われています！ガードまたは避難させてください！`;
+    let infoEl = document.getElementById('info-panel');
+    if (infoEl) infoEl.innerText = pStr;
+
+    if ((gameMode === 'pve' || gameMode === 'boss') && turn === 2) {
+        setTimeout(playCPUTurn, 600);
+    }
+}
+
+function endTurn() {
+    isHorseDockingMode = false;
+    let boardOverlay = document.getElementById('board-overlay');
+    if (boardOverlay) boardOverlay.style.display = 'none';
+    
+    totalTurnsCount++;
+    checkItemDrop();
+
+    if (gameMode === 'boss' && turn === 2) {
+        if (bossCoolDown > 0) bossCoolDown--;
+    }
+
+    for(let r=0; r<9; r++){
+        for(let c=0; c<9; c++){
+            let p = boardState[r] ? boardState[r][c] : null;
+            if (p && p.p === turn) {
+                if (p.shield > 0) p.shield--;
+                
+                // 🐎 馬のドッキング5手時限カウントダウン＆自動解除処理
+                if (p.t === 'KA' && p.mountedPiece) {
+                    p.dockTimer = (p.dockTimer !== undefined ? p.dockTimer : 5) - 1;
+                    if (p.dockTimer <= 0) {
+                        let ejectedPiece = p.mountedPiece;
+                        p.mountedPiece = null;
+                        
+                        let emptySurroundings = [];
+                        for (let dr = -1; dr <= 1; dr++) {
+                            for (let dc = -1; dc <= 1; dc++) {
+                                if (dr === 0 && dc === 0) continue;
+                                let tr = r + dr, tc = c + dc;
+                                if (tr >= 0 && tr < 9 && tc >= 0 && tc < 9 && !boardState[tr][tc]) {
+                                    emptySurroundings.push({ r: tr, c: tc });
+                                }
+                            }
+                        }
+                        if (emptySurroundings.length > 0) {
+                            let randPos = emptySurroundings[Math.floor(Math.random() * emptySurroundings.length)];
+                            boardState[randPos.r][randPos.c] = {
+                                t: ejectedPiece, p: p.p, hp: PIECE_TYPES[ejectedPiece].hp,
+                                promoted: false, spUsed: false, shield: 0, mountedPiece: null, isCharging: false
+                            };
+                            addLog(p.p, `⚠️ ドッキング解除！馬から【${PIECE_TYPES[ejectedPiece].name}】が分離排出された！`);
+                        } else {
+                            captured[p.p].push(ejectedPiece);
+                            addLog(p.p, `⚠️ ドッキング解除！【${PIECE_TYPES[ejectedPiece].name}】を持ち駒へ回収！`);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    turn = turn === 1 ? 2 : 1;
+
+    // 🐉 龍のメガ粒子砲（チャージ完了時の自動発射判定）
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            let p = boardState[r] ? boardState[r][c] : null;
+            if (p && p.p === turn && p.t === 'HI' && p.isCharging) {
+                p.isCharging = false;
+                executeRyuMegaParticleBeam(r, c, p);
+            }
+        }
+    }
+
+    resetSelection();
+}
+
+// --- CPU AI（思考＆戦術選定システム） ---
+function playCPUTurn() {
+    let possibleActions = [];
+
+    let checkedKings = checkKingsUnderAttack();
+    let myKingChecked = checkedKings.some(pos => {
+        let p = boardState[pos.r] ? boardState[pos.r][pos.c] : null;
+        return p && p.p === 2;
+    });
+
+// 😈 【VS大王戦：3体順番アクションシステム（分裂バグ防止＆滑らか演出版）】
+    if (gameMode === 'boss') {
+        let bossUnitTypes = ['SOLDIER', 'SHOGUN', 'BOSS'];
+        
+        (async () => {
+            for (let unitType of bossUnitTypes) {
+                // 盤上から該当する駒を探す
+                let unitPos = null;
+                for (let r = 0; r < 9; r++) {
+                    for (let c = 0; c < 9; c++) {
+                        let p = boardState[r] ? boardState[r][c] : null;
+                        if (p && p.p === 2 && p.t === unitType) {
+                            unitPos = { r, c, piece: p };
+                            break;
+                        }
+                    }
+                    if (unitPos) break;
+                }
+
+                if (!unitPos) continue; // その駒が倒されていれば次へ
+
+                // 👑 大王のニアバースト判定
+                if (unitType === 'BOSS' && bossCoolDown === 0) {
+                    let countTargets = 0;
+                    for (let dr = -2; dr <= 2; dr++) {
+                        for (let dc = -2; dc <= 2; dc++) {
+                            let tr = unitPos.r + dr, tc = unitPos.c + dc;
+                            if (tr >= 0 && tr < 9 && tc >= 0 && tc < 9) {
+                                let tp = boardState[tr] ? boardState[tr][tc] : null;
+                                if (tp && tp.p === 1) countTargets++;
+                            }
+                        }
+                    }
+                    if (countTargets > 0) {
+                        bossCoolDown = 4;
+                        await new Promise(resolve => {
+                            playCutinEffect("大王", 'normal', () => {
+                                playHitEffect(unitPos.r, unitPos.c); playSE('heavy_hit');
+                                for (let dr = -2; dr <= 2; dr++) {
+                                    for (let dc = -2; dc <= 2; dc++) {
+                                        let tr = unitPos.r + dr, tc = unitPos.c + dc;
+                                        if (tr >= 0 && tr < 9 && tc >= 0 && tc < 9) {
+                                            let tp = boardState[tr] ? boardState[tr][tc] : null;
+                                            if (tp && tp.p === 1) {
+                                                if (tp.shield > 0) addLog(2, `ニアバースト！${PIECE_TYPES[tp.t].name}のシールドに防がれた！`);
+                                                else {
+                                                    playHitEffect(tr, tc); tp.hp -= 1;
+                                                    if (tp.hp <= 0) boardState[tr][tc] = null;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                addLog(2, `😈大王の【ニアバースト】！周囲の敵をなぎ払った！`);
+                                renderBoard();
+                                setTimeout(resolve, 600);
+                            });
+                        });
+                        continue;
+                    }
+                }
+
+                // 🎯 最善手を選択
+                let myActions = [];
+                let atks = calculateTargetsPure({ r: unitPos.r, c: unitPos.c }, 'attack');
+                atks.filter(t => !t.blocked).forEach(t => {
+                    myActions.push({ type: 'attack', from: unitPos, to: t, score: evaluateActionMid(unitPos, t, 'attack') + 200 });
+                });
+
+                let mvs = calculateTargetsPure({ r: unitPos.r, c: unitPos.c }, 'move');
+                mvs.filter(t => !t.blocked).forEach(t => {
+                    myActions.push({ type: 'move', from: unitPos, to: t, score: evaluateActionMid(unitPos, t, 'move') });
+                });
+
+                if (myActions.length > 0) {
+                    myActions.sort((a, b) => b.score - a.score);
+                    let act = myActions[0];
+
+                    if (act.type === 'attack') {
+                        // ⚔️ 攻撃：アニメーション後になぎ払い＆移動（分裂防止）
+                        await new Promise(resolve => {
+                            let fromR = unitPos.r, fromC = unitPos.c;
+                            let actor = unitPos.piece;
+
+                            animatePieceMove(fromR, fromC, act.to.r, act.to.c, true, () => {
+                                playSaberSlashEffect(act.to.r, act.to.c);
+                                playHitEffect(act.to.r, act.to.c);
+                                
+                                // 攻撃処理
+                                executeAttack(actor, act.to.r, act.to.c, false);
+                                
+                                // 🛑 【分裂防止】攻撃で前進・拿捕した場合は元のマスをしっかり消す！
+                                if (boardState[act.to.r][act.to.c] === actor && (act.to.r !== fromR || act.to.c !== fromC)) {
+                                    boardState[fromR][fromC] = null;
+                                }
+
+                                renderBoard();
+                                setTimeout(resolve, 500);
+                            });
+                        });
+                    } else if (act.type === 'move') {
+                        // 🚶 移動：元のマスを消して移動先へ
+                        await new Promise(resolve => {
+                            playSE('select');
+                            animatePieceMove(unitPos.r, unitPos.c, act.to.r, act.to.c, false, () => {
+                                boardState[act.to.r][act.to.c] = unitPos.piece;
+                                boardState[unitPos.r][unitPos.c] = null; // 元のマスを消す
+                                checkPickupItem(act.to.r, act.to.c, unitPos.piece);
+                                addLog(2, `👿ボス軍団【${PIECE_TYPES[unitType].name}】が進撃！`);
+                                renderBoard();
+                                setTimeout(resolve, 400);
+                            });
+                        });
+                    }
+
+                    // ⚠️ 王手警報ストッパー
+                    let checkedKings = checkKingsUnderAttack();
+                    if (checkedKings.some(pos => boardState[pos.r] && boardState[pos.r][pos.c] && boardState[pos.r][pos.c].p === 1)) {
+                        addLog(2, `⚠️ ボス軍団の襲撃により王手発生！`);
+                        break; 
+                    }
+                }
+            }
+            
+            setTimeout(endTurn, 400);
+        })();
+
+        return;
+    }
+
+    // 🛡️ 【持ち駒を打つ判定】
+    if (captured[2].length > 0) {
+        captured[2].forEach((pieceType, capIndex) => {
+            let emptyCells = [];
+            for(let r=0; r<9; r++){
+                for(let c=0; c<9; c++){
+                    if(!boardState[r][c]) {
+                        if (pieceType === 'FU' && hasPawnInColumn(2, c)) {}
+                        else if (isInvalidDropPosition(2, pieceType, r)) {}
+                        else {
+                            let score = PIECE_VALUES[pieceType] || 15;
+                            let isShieldDrop = false; // 🛡️ 盾（合駒）として機能したかフラグ
+                            
+                            // 🛡️ 【新設】敵の大駒・香車の射線遮断（盾・合駒）チェック！
+                            if (pieceType === 'FU') {
+                                for (let er = 0; er < 9; er++) {
+                                    for (let ec = 0; ec < 9; ec++) {
+                                        let ep = boardState[er] ? boardState[er][ec] : null;
+                                        // 敵(1P)の飛・龍・角・馬・香車を探す
+                                        if (ep && ep.p === 1 && (ep.t === 'HI' || ep.t === 'KA' || ep.t === 'KY' || ep.promoted)) {
+                                            let enemyAtkTargets = calculateTargetsPure({ r: er, c: ec }, 'attack');
+                                            let isOnRay = enemyAtkTargets.some(t => t.r === r && t.c === c);
+                                            
+                                            if (isOnRay) {
+                                                // 仮に歩を置いた場合、敵の射線が止まるかをシミュレーション
+                                                boardState[r][c] = { t: 'FU', p: 2 };
+                                                let targetsAfterDrop = calculateTargetsPure({ r: er, c: ec }, 'attack');
+                                                boardState[r][c] = null;
+
+                                                let savedFriend = false;
+                                                enemyAtkTargets.forEach(t => {
+                                                    let friend = boardState[t.r] ? boardState[t.r][t.c] : null;
+                                                    if (friend && friend.p === 2 && friend.t !== 'FU') {
+                                                        if (!targetsAfterDrop.some(at => at.r === t.r && at.c === t.c)) {
+                                                            savedFriend = true;
+                                                        }
+                                                    }
+                                                });
+
+                                                if (savedFriend) {
+                                                    score += 500; // 🛡️ 完璧な盾になる位置に特大加点！
+                                                    isShieldDrop = true;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // 🚫 盾にもならず王手も受けていない時の「無意味な歩の無駄打ち」を減点！
+                                if (!isShieldDrop && !myKingChecked) {
+                                    score -= 300; 
+                                }
+                            }
+
+                            // 🛡️ 敵の長距離砲ラインチェック
+                            let enemyPenetratingCount = getPenetratingCoverCount(r, c, 1);
+                            if (enemyPenetratingCount > 0) {
+                                let myDefendCount = getTileCoverCount(r, c, 2);
+                                if (myDefendCount === 0) {
+                                    score += 200;
+                                }
+                            }
+
+                            score += PSTO_MID[r][c] * 2;
+
+                            if (myKingChecked) {
+                                boardState[r][c] = { t: pieceType, p: 2, hp: 1 };
+                                let stillChecked = checkKingsUnderAttack().some(pos => {
+                                    let k = boardState[pos.r][pos.c]; return k && k.p === 2;
+                                });
+                                boardState[r][c] = null;
+                                if (stillChecked) return;
+                            }
+                            emptyCells.push({cell: {r, c}, score});
+                        }
+                    }
+                }
+            }
+            if (emptyCells.length > 0) {
+                emptyCells.sort((a, b) => b.score - a.score);
+                possibleActions.push({ type: 'drop', capIndex: capIndex, to: emptyCells[0].cell, score: emptyCells[0].score });
+            }
+        });
+    }
+
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            let p = boardState[r] ? boardState[r][c] : null;
+            if (p && p.p === 2) {
+                let origin = { r, c };
+                let canSp = false;
+                if (p.t === 'KI' || p.t === 'SOLDIER' || p.t === 'SHOGUN') canSp = !p.spUsed;
+                else if (p.t === 'OU') canSp = !p.spUsed; 
+                else if (p.t === 'HI') canSp = (p.promoted && !p.spUsed); // 🐉 CPUも龍のみ必殺判定
+                else if (p.t === 'KA') canSp = (p.promoted && !p.spUsed && captured[2].length > 0);
+                else canSp = (p.promoted && !p.spUsed);
+
+                if (canSp) {
+                    if (p.t === 'KA' && captured[2].length > 0) {
+                        let score = 500;
+                        if (!myKingChecked) possibleActions.push({ type: 'horse_dock', from: origin, capIndex: 0, score: score });
+                    } else if (p.t === 'KI') {
+                        if (shouldCpuUseShield(r, c) && !myKingChecked) {
+                            possibleActions.push({ type: 'special', from: origin, to: origin, spType: 'shield', score: 500 });
+                        }
+                        selectedSpecialType = 'spear';
+                        let spearTargets = calculateTargetsPure(origin, 'special');
+                        spearTargets.filter(t => !t.blocked).forEach(t => {
+                            let score = evaluateActionMid(origin, t, 'special') + 300;
+                            if (myKingChecked) {
+                                let savedP = boardState[r][c], savedT = boardState[t.r][t.c];
+                                boardState[t.r][t.c] = savedP; boardState[r][c] = null;
+                                let stillChecked = checkKingsUnderAttack().some(pos => {
+                                    let k = boardState[pos.r][pos.c]; return k && k.p === 2;
+                                });
+                                boardState[r][c] = savedP; boardState[t.r][t.c] = savedT;
+                                if (stillChecked) return;
+                            }
+                            possibleActions.push({ type: 'special', from: origin, to: t, spType: 'spear', score: score });
+                        });
+                        selectedSpecialType = 'shield';
+                    } else if (p.t !== 'BOSS') {
+                        let spTargets = calculateTargetsPure(origin, 'special');
+                        spTargets.filter(t => !t.blocked).forEach(t => {
+                            let score = evaluateActionMid(origin, t, 'special') + 200;
+                            if (myKingChecked) {
+                                let savedP = boardState[r][c], savedT = boardState[t.r][t.c];
+                                boardState[t.r][t.c] = savedP; boardState[r][c] = null;
+                                let stillChecked = checkKingsUnderAttack().some(pos => {
+                                    let k = boardState[pos.r][pos.c]; return k && k.p === 2;
+                                });
+                                boardState[r][c] = savedP; boardState[t.r][t.c] = savedT;
+                                if (stillChecked) return;
+                            }
+                            possibleActions.push({ type: 'special', from: origin, to: t, spType: 'shield', score: score });
+                        });
+                    }
+                }
+
+                let atkTargets = calculateTargetsPure(origin, 'attack');
+                atkTargets.filter(t => !t.blocked).forEach(t => {
+                    let score = evaluateActionMid(origin, t, 'attack');
+                    if (p.t === 'BOSS') score += 150;
+                    if (myKingChecked) {
+                        let savedP = boardState[r][c], savedT = boardState[t.r][t.c];
+                        boardState[t.r][t.c] = savedP; boardState[r][c] = null;
+                        let stillChecked = checkKingsUnderAttack().some(pos => {
+                            let k = boardState[pos.r][pos.c]; return k && k.p === 2;
+                        });
+                        boardState[r][c] = savedP; boardState[t.r][t.c] = savedT;
+                        if (stillChecked) return;
+                    }
+                    possibleActions.push({ type: 'attack', from: origin, to: t, score: score });
+                });
+
+                let moveTargets = calculateTargetsPure(origin, 'move');
+                moveTargets.filter(t => !t.blocked).forEach(t => {
+                    let score = evaluateActionMid(origin, t, 'move');
+                    if (isEnemyThreatening(r, c) && !isEnemyThreatening(t.r, t.c)) score += 60; 
+                    if (itemState.some(it => it.r === t.r && it.c === t.c)) score += 70;
+
+                    if (myKingChecked) {
+                        let savedP = boardState[r][c], savedT = boardState[t.r][t.c];
+                        boardState[t.r][t.c] = savedP; boardState[r][c] = null;
+                        let stillChecked = checkKingsUnderAttack().some(pos => {
+                            let k = boardState[pos.r][pos.c]; return k && k.p === 2;
+                        });
+                        boardState[r][c] = savedP; boardState[t.r][t.c] = savedT;
+                        if (stillChecked) return;
+                    }
+                    possibleActions.push({ type: 'move', from: origin, to: t, score: score });
+                });
+            }
+        }
+    }
+
+    if (possibleActions.length === 0) { endTurn(); return; }
+
+    // 🎯 【最優先ルール0：序盤の絶対定跡・飛車先防衛（75%の確率で発動）】
+    let isPlayerPawnAt25 = boardState[4] && boardState[4][7] && boardState[4][7].p === 1 && boardState[4][7].t === 'FU';
+    let is32Empty = boardState[1] && !boardState[1][6]; 
+    let myGinAt31 = boardState[0] && boardState[0][6] && boardState[0][6].p === 2 && boardState[0][6].t === 'GI'; 
+
+    let openingDefendMove = null;
+    if (isPlayerPawnAt25 && is32Empty && myGinAt31) {
+        if (Math.random() < 0.75) { 
+            openingDefendMove = possibleActions.find(act => 
+                act.type === 'move' && 
+                act.from.r === 0 && act.from.c === 6 && 
+                act.to.r === 1 && act.to.c === 6
+            );
+            if (openingDefendMove) {
+                addLog(2, "💡 定跡対応(75%)：飛車先プレッシャーを検知！【3二銀】で角頭をガード！");
+            }
+        } else {
+            addLog(2, "🤔 CPU：飛車先を警戒しつつも、別構えを選択…");
+        }
+    }
+
+    // 🎯 【第1段階：最優先戦術ルール（緊急対処フィルター）】
+    let urgentInterceptions = possibleActions.filter(action => {
+        if (action.type === 'attack') {
+            let target = boardState[action.to.r] ? boardState[action.to.r][action.to.c] : null;
+            if (target && target.p === 1 && (action.to.r <= 3 || target.promoted)) {
+                return true; 
+            }
+        }
+        return false;
+    });
+
+    if (urgentInterceptions.length === 0 && openingDefendMove) {
+        urgentInterceptions = [openingDefendMove];
+    }
+
+    let best = null;
+
+    if (urgentInterceptions.length > 0) {
+        urgentInterceptions.sort((a, b) => b.score - a.score);
+        best = urgentInterceptions[0];
+    } else {
+        possibleActions.sort((a, b) => b.score - a.score);
+        best = possibleActions[0];
+    }
+
+    if (best.from && boardState[best.from.r] && boardState[best.from.r][best.from.c]) {
+        let key = `${best.to.r},${best.to.c}_${boardState[best.from.r][best.from.c].t}`;
+        cpuPreviousPosMap[key] = { r: best.from.r, c: best.from.c };
+    }
+
+    isProcessingTurn = true;
+
+    if (best.type === 'drop') {
+        let pieceType = captured[2].splice(best.capIndex, 1)[0];
+        boardState[best.to.r][best.to.c] = { t: pieceType, p: 2, hp: PIECE_TYPES[pieceType].hp, promoted: false, spUsed: false, shield: 0, mountedPiece: null, isCharging: false };
+        lastMoveTo = { r: best.to.r, c: best.to.c };
+        playSE('select');
+        addLog(2, `CPUが持ち駒【${PIECE_TYPES[pieceType].name}】を召喚！`);
+        let infoEl = document.getElementById('info-panel');
+        if (infoEl) infoEl.innerText = `CPUが持ち駒【${PIECE_TYPES[pieceType].name}】を召喚！`;
+        setTimeout(endTurn, 400);
+    } else if (best.type === 'horse_dock') {
+        let actor = boardState[best.from.r][best.from.c];
+        let capType = captured[2].splice(best.capIndex, 1)[0];
+        actor.mountedPiece = capType; actor.spUsed = true; actor.dockTimer = 5;
+        lastMoveTo = { r: best.from.r, c: best.from.c };
+        
+        playCutinEffect(PIECE_TYPES[actor.t].spName, 'normal', () => {
+            playHitEffect(best.from.r, best.from.c); playSE('special');
+            addLog(2, `CPUの馬が【${PIECE_TYPES[capType].name}】と合体！(残り5手)`);
+            let infoEl = document.getElementById('info-panel');
+            if (infoEl) infoEl.innerText = `CPUの馬が合体しました！`;
+            isProcessingTurn = false; isHorseDockingMode = false;
+            setTimeout(endTurn, 400);
+        });
+    } else {
+        let actor = boardState[best.from.r][best.from.c];
+        if (best.type === 'move') {
+            playSE('select');
+            let fromR = best.from.r, fromC = best.from.c;
+            lastMoveTo = { r: best.to.r, c: best.to.c };
+            const actorName = actor.promoted ? PIECE_TYPES[actor.t].pName : PIECE_TYPES[actor.t].name;
+            
+            animatePieceMove(fromR, fromC, best.to.r, best.to.c, false, () => {
+                boardState[best.to.r][best.to.c] = actor; boardState[fromR][fromC] = null;
+                checkPickupItem(best.to.r, best.to.c, actor);
+                let pMsg = checkPromotion(fromR, best.to.r, actor);
+                addLog(2, `${actorName}が移動。${pMsg}`);
+                endTurn();
+            });
+        } else if (best.type === 'attack') {
+            selected = best.from;
+            let targetObj = calculateTargetsPure(best.from, 'attack').find(t => t.r === best.to.r && t.c === best.to.c);
+            let targetPiece = boardState[best.to.r] ? boardState[best.to.r][best.to.c] : null;
+            let willCapture = (targetPiece && targetPiece.hp <= ((actor.mountedPiece && targetObj && targetObj.isHeavy) ? 2 : 1));
+            let dist = Math.max(Math.abs(best.to.r - best.from.r), Math.abs(best.to.c - best.from.c));
+            let isRangedAttack = (dist >= 2 && (actor.t === 'HI' || actor.t === 'KA' || actor.t === 'KY'));
+
+            if (willCapture) {
+                animatePieceMove(best.from.r, best.from.c, best.to.r, best.to.c, true, () => {
+                    playSaberSlashEffect(best.to.r, best.to.c);
+                    playHitEffect(best.to.r, best.to.c);
+                    executeAttack(actor, best.to.r, best.to.c, false, targetObj ? targetObj.isHeavy : false);
+                    setTimeout(endTurn, 400);
+                });
+            } else {
+                if (isRangedAttack) {
+                    playLaserEffect(best.from.r, best.from.c, best.to.r, best.to.c, targetObj ? targetObj.isHeavy : false);
+                    if (targetObj && targetObj.isHeavy && actor.mountedPiece) playSE('heavy_hit'); else playSE('hit');
+                    playHitEffect(best.to.r, best.to.c);
+                    executeAttack(actor, best.to.r, best.to.c, false, targetObj ? targetObj.isHeavy : false);
+                    setTimeout(endTurn, 400);
+                } else {
+                    playSaberSlashEffect(best.to.r, best.to.c);
+                    playHitEffect(best.to.r, best.to.c);
+                    if (targetObj && targetObj.isHeavy) playSE('heavy_hit'); else playSE('hit');
+                    executeAttack(actor, best.to.r, best.to.c, false, targetObj ? targetObj.isHeavy : false);
+                    setTimeout(endTurn, 400);
+                }
+            }
+        } else if (best.type === 'special') {
+            selected = best.from; selectedSpecialType = best.spType || 'shield';
+            let spNameStr = (actor.t === 'KI' && selectedSpecialType === 'spear') ? PIECE_TYPES.KI.spName2 : PIECE_TYPES[actor.t].spName;
+
+            playCutinEffect(spNameStr, 'normal', () => {
+                playHitEffect(best.to.r, best.to.c);
+                playSE('special');
+                executeSpecial(actor, best.to.r, best.to.c);
+            });
+        }
+    }
+}
+
+function getTargetsFor(origin, mode) {
+    selected = origin; calculateTargets(origin, mode); return targets;
+}
+
+window.onload = function() { initGame(); };
+</script>
+</body>
+</html>
