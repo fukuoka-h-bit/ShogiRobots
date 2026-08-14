@@ -211,6 +211,16 @@
     #ai-panel { width: 100%; max-width: 440px; margin: 8px auto 0 auto; background: #181822; border: 1px solid #00ccff; border-radius: 6px; padding: 6px; font-size: 10px; display: flex; justify-content: space-between; align-items: center; }
     .ai-btn { padding: 4px 8px; font-size: 10px; background: #004466; color: #00ffff; border: 1px solid #00ffff; border-radius: 3px; cursor: pointer; }
     .ai-btn:hover { background: #006699; }
+
+    /* ⚔️ 通常攻撃・目標選択中の黄色（ゴールド）発光ボタン */
+    button.active-cmd {
+    background: #887700 !important;
+    color: #ffff00 !important;
+    border: 2px solid #ffff00 !important;
+    box-shadow: 0 0 10px rgba(255, 255, 0, 0.8) !important;
+    animation: blink 0.8s infinite alternate;
+}
+
 </style>
 </head>
 <body>
@@ -282,14 +292,14 @@
 <script>
 // --- 定数定義 ---
 const PIECE_TYPES = {
-    FU: { name: "歩", pName: "と", hp: 2, spName: "ハイパー・ダブルバースト", desc: "【連射技】紫色の敵対象を選択して即発動！50%×2連射。" },
-    KY: { name: "香", pName: "成香", hp: 2, spName: "バックブースト・エスケープ", desc: "【緊急移動】真後ろの紫色の移動マスを選択して即発動！" },
-    KE: { name: "桂", pName: "成桂", hp: 2, spName: "オメガ・ナイト・ナイトメア", desc: "【奇襲攻撃】紫色の敵対象を選択して即発動！八方跳躍！" },
-    GI: { name: "銀", pName: "成銀", hp: 2, spName: "ロングレンジ・ビームスピア", desc: "【長槍突撃】紫色の敵対象を選択して即発動！斜め2マス先攻撃！" },
+    FU: { name: "歩", pName: "と", hp: 2, spName: "ダブルバースト", desc: "【連射技】ヒット率50%の攻撃を2連射" },
+    KY: { name: "香", pName: "成香", hp: 2, spName: "バックブースト", desc: "【緊急移動】真後ろに脱兎のごとく避難" },
+    KE: { name: "桂", pName: "成桂", hp: 2, spName: "ナイト・ナイトメア", desc: "【奇襲攻撃】八方に跳躍可能" },
+    GI: { name: "銀", pName: "成銀", hp: 2, spName: "ロングレンジ・スピア", desc: "【長槍突撃】斜め2マス先を攻撃" },
     KI: { name: "金", pName: "金", hp: 2, spName: "アルティメットシールド", spName2: "アルティメットスピア", desc: "【切り札選択】1対局中に『シールド(防衛バリア)』か『スピア(貫通ダメージ1)』のどちらか1回だけ発動可能！" },
-    KA: { name: "角", pName: "馬", hp: 1, spName: "ドッキング・リチャージ", desc: "【時限合体】選択した持ち駒をクリックして合体！5手後にエネルギー切れで分離！" },
-    HI: { name: "飛", pName: "龍", hp: 1, spName: "メガ粒子全貫通マップ兵器", desc: "【1ターンチャージ】龍（成駒）限定！『発動する』ボタンでチャージ！次ターン自動砲撃！" },
-    OU: { name: "玉", pName: "玉", hp: 2, spName: "次元跳躍・ランダムテレポート", desc: "【次元跳躍】『発動する』ボタンを押して盤上のランダムな空きマスへ即時ワープ！" },
+    KA: { name: "角", pName: "馬", hp: 1, spName: "駒合体", desc: "【時限合体】持ち駒と合体！5手後にエネルギー切れで分離" },
+    HI: { name: "飛", pName: "龍", hp: 1, spName: "メガビーム", desc: "【殲滅攻撃】１ターン後に敵味方巻き込む貫通ビームを発射" },
+    OU: { name: "玉", pName: "玉", hp: 2, spName: "ランダムワープ", desc: "【次元跳躍】盤上のランダムな空きマスへ避難" },
     BOSS: { name: "大王", pName: "大王", hp: 10, spName: "ニアバースト", desc: "【ニアバースト】全方向2マス内の対象全員に1ダメージ！" },
     SHOGUN: { name: "将軍", pName: "将軍", hp: 6, spName: "プチバースト", desc: "【プチバースト】全方向1マス内の敵全員に1ダメージ！" },
     SOLDIER: { name: "兵", pName: "兵", hp: 2, spName: "イージス・全方位シールド", desc: "【防衛バリア】周囲の味方機に3ターン無敵バリアを展開！" }
@@ -314,7 +324,7 @@ const PIECE_VALUES = {
     KE: 450, KY: 350, FU: 100, SOLDIER: 600, SHOGUN: 1500, BOSS: 10000
 };
 
-const DOCKING_GUIDE_TEXT = "<strong>【ドッキング・リチャージ】</strong><br>持ち駒一覧から合体させる駒を選択してください。";
+const DOCKING_GUIDE_TEXT = "<strong>【駒合体】</strong><br>持ち駒一覧から合体させる駒を選択してください。";
 
 const PSTO_MID = [
     [10, 10, 10, 10, 10, 10, 10, 10, 10],
@@ -358,7 +368,7 @@ let currentTargetCastle = null;
 let cpuPreviousPosMap = {};
 let boardCellsInitialized = false;
 
-let cpuBrainData = { badPositions: [] };
+let cpuBrainData = { badPositions: [], goodPatterns: [] }; 
 
 function loadBrainFromStorage() {
     try {
@@ -382,7 +392,11 @@ function saveBrainToStorage() {
 
 function updateAiUi() {
     const el = document.getElementById('ai-memory-count');
-    if (el) el.innerText = cpuBrainData.badPositions.length;
+    if (el && cpuBrainData) {
+        let badCount = cpuBrainData.badPositions ? cpuBrainData.badPositions.length : 0;
+        let goodCount = cpuBrainData.goodPatterns ? cpuBrainData.goodPatterns.length : 0;
+        el.innerText = badCount + goodCount; // ⭕ プラス記憶も含めた合計件数を表示！
+    }
 }
 
 function learnFromCapture(targetPiece, atR, atC, attackerPiece) {
@@ -390,6 +404,31 @@ function learnFromCapture(targetPiece, atR, atC, attackerPiece) {
     if (targetPiece.p !== 2) return; 
     let penaltyVal = (PIECE_VALUES[targetPiece.t] || 500) * 1.5;
     cpuBrainData.badPositions.push({ pieceType: targetPiece.t, r: atR, c: atC, killer: attackerPiece.t, penalty: penaltyVal });
+    saveBrainToStorage();
+}
+
+// 👍 CPUが成功（ダメージ・拿捕・王手）した時にプラスの記憶を保存
+function learnSuccessPattern(pieceType, toR, toC, bonusVal, reason) {
+    if (gameMode === 'pvp') return; // 対人戦では記録しない
+
+    // 🛡️ 配列未定義エラーを防ぐガード処理
+    if (!cpuBrainData.goodPatterns) {
+        cpuBrainData.goodPatterns = [];
+    }
+
+    cpuBrainData.goodPatterns.push({
+        pieceType: pieceType,
+        r: toR,
+        c: toC,
+        bonus: bonusVal,
+        reason: reason // "capture", "check", "castle" など
+    });
+
+    // 記憶が増えすぎないよう最新100件に制限
+    if (cpuBrainData.goodPatterns.length > 100) {
+        cpuBrainData.goodPatterns.shift();
+    }
+    
     saveBrainToStorage();
 }
 
@@ -422,7 +461,7 @@ function importBrainFile(event) {
 
 function resetCpuBrain() {
     if (confirm("CPUの学習記憶を消去して初期状態に戻しますか？")) {
-        cpuBrainData = { badPositions: [] };
+        cpuBrainData = { badPositions: [], goodPatterns: [] };
         saveBrainToStorage();
         alert("🧹 CPUの記憶をリセットしました。");
     }
@@ -699,7 +738,140 @@ function calculateTargetsPure(origin, mode) {
                 }
             }
         });
-        return resTargets;
+    } else {
+        // ⭕ 通常の駒（OUや金など）の処理
+        if (p.promoted && p.t !== 'HI' && p.t !== 'KA' && p.t !== 'KI' && p.t !== 'SOLDIER' && p.t !== 'SHOGUN') {
+            vectors = [[dir, -1], [dir, 0], [dir, 1], [0, -1], [0, 1], [-dir, 0]];
+        } else {
+            if (p.t === 'FU') vectors = [[dir, 0]];
+            if (p.t === 'KY') { vectors = [[dir, 0]]; isRanged = true; }
+            if (p.t === 'KE') vectors = [[dir * 2, -1], [dir * 2, 1]];
+            if (p.t === 'GI') vectors = [[dir, -1], [dir, 0], [dir, 1], [-dir, -1], [-dir, 1]];
+            if (p.t === 'KI' || p.t === 'SOLDIER' || p.t === 'SHOGUN') vectors = [[dir, -1], [dir, 0], [dir, 1], [0, -1], [0, 1], [-dir, 0]];
+            if (p.t === 'OU') vectors = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+            if (p.t === 'HI') { vectors = [[-1,0],[1,0],[0,-1],[0,1]]; isRanged = true; }
+            if (p.t === 'KA') { vectors = [[-1,-1],[-1,1],[1,-1],[1,1]]; isRanged = true; }
+        }
+
+        if (mode === 'special') {
+            if (p.t === 'KY') { vectors = [[-dir, 0]]; isRanged = true; }
+            else if (p.t === 'KE') { vectors = [[-dir * 2, -1], [-dir * 2, 1], [dir * 2, -1], [dir * 2, 1], [-dir, -2], [-dir, 2], [dir, -2], [dir, 2]]; isRanged = false; }
+            else if (p.t === 'GI') { vectors = [[dir*2, -2], [dir*2, 2], [-dir*2, -2], [-dir*2, 2]]; isRanged = false; }
+            else if (p.t === 'KI') {
+                if (selectedSpecialType === 'spear') { vectors = [[dir, -1], [dir, 0], [dir, 1], [0, -1], [0, 1], [-dir, 0]]; isRanged = false; }
+                else { resTargets.push({ r: r, c: c, blocked: false }); return resTargets; }
+            }
+            else if (p.t === 'HI') {
+                const directions = [[-1,0],[1,0],[0,-1],[0,1]];
+                directions.forEach(d => {
+                    for (let step = 1; step <= 8; step++) {
+                        let tr = r + d[0] * step, tc = c + d[1] * step;
+                        if (tr >= 0 && tr < 9 && tc >= 0 && tc < 9) {
+                            resTargets.push({ r: tr, c: tc, blocked: false });
+                        }
+                    }
+                });
+                return resTargets;
+            }
+            else if (p.t === 'KA' || p.t === 'OU' || p.t === 'SHOGUN') { resTargets.push({ r: r, c: c, blocked: false }); return resTargets; }
+        }
+
+        vectors.forEach(v => {
+            let step = 1;
+            while (true) {
+                let tr = r + v[0] * step, tc = c + v[1] * step;
+                if (tr < 0 || tr >= 9 || tc < 0 || tc >= 9) break;
+                const targetPiece = boardState[tr] ? boardState[tr][tc] : null;
+                if (mode === 'move') {
+                    if (targetPiece) { resTargets.push({ r: tr, c: tc, blocked: true }); break; }
+                    else resTargets.push({ r: tr, c: tc, blocked: false });
+                } else if (mode === 'attack') {
+                    let dr = tr - r, dc = tc - c;
+                    let isHeavy = p.mountedPiece ? isMatchingMountedArea(p.mountedPiece, dr, dc, dir) : false;
+                    if (targetPiece) {
+                        if (targetPiece.p === p.p) { resTargets.push({ r: tr, c: tc, blocked: true }); break; }
+                        else { resTargets.push({ r: tr, c: tc, blocked: false, isHeavy }); break; }
+                    }
+                } else if (mode === 'special') {
+                    if (p.t === 'KY') {
+                        if (targetPiece) { resTargets.push({ r: tr, c: tc, blocked: true }); break; }
+                        else resTargets.push({ r: tr, c: tc, blocked: false });
+                    } else if (p.t === 'SOLDIER') { if (targetPiece && targetPiece.p === p.p) resTargets.push({ r: tr, c: tc, blocked: false }); }
+                    else { if (targetPiece && targetPiece.p !== p.p) { resTargets.push({ r: tr, c: tc, blocked: false }); break; } }
+                }
+                if (!isRanged) break;
+                step++;
+            }
+        });
+
+        if (p.promoted || (p.t === 'KA' && p.mountedPiece)) {
+            let extraVectors = [];
+            if (p.t === 'HI' && p.promoted) extraVectors = [[-1,-1],[-1,1],[1,-1],[1,1]];
+            if (p.t === 'KA' && p.promoted && p.mountedPiece !== 'HI') extraVectors = [[-1,0],[1,0],[0,-1],[0,1]];
+            
+            if (p.t === 'KA' && p.mountedPiece === 'HI') {
+                const hiVectors = [[-1,0],[1,0],[0,-1],[0,1]];
+                hiVectors.forEach(v => {
+                    let step = 1;
+                    while (true) {
+                        let tr = r + v[0] * step, tc = c + v[1] * step;
+                        if (tr < 0 || tr >= 9 || tc < 0 || tc >= 9) break;
+                        const targetPiece = boardState[tr] ? boardState[tr][tc] : null;
+                        
+                        if (mode === 'move') {
+                            if (targetPiece) { resTargets.push({ r: tr, c: tc, blocked: true }); break; }
+                            else resTargets.push({ r: tr, c: tc, blocked: false });
+                        } else if (mode === 'attack' || mode === 'special') {
+                            if (targetPiece) {
+                                if (targetPiece.p !== p.p) resTargets.push({ r: tr, c: tc, blocked: false });
+                                else resTargets.push({ r: tr, c: tc, blocked: true });
+                                break;
+                            }
+                        }
+                        step++;
+                    }
+                });
+            }
+
+            extraVectors.forEach(v => {
+                let tr = r + v[0], tc = c + v[1];
+                if (tr >= 0 && tr < 9 && tc >= 0 && tc < 9) {
+                    const targetPiece = boardState[tr] ? boardState[tr][tc] : null;
+                    let dr = tr - r, dc = tc - c;
+                    let isHeavy = p.mountedPiece ? isMatchingMountedArea(p.mountedPiece, dr, dc, dir) : false;
+                    if (mode === 'move') {
+                        if (!targetPiece) resTargets.push({ r: tr, c: tc, blocked: false });
+                        else resTargets.push({ r: tr, c: tc, blocked: true });
+                    } else if (mode === 'attack' || mode === 'special') {
+                        if (targetPiece) {
+                            if (targetPiece.p !== p.p) resTargets.push({ r: tr, c: tc, blocked: false, isHeavy });
+                            else resTargets.push({ r: tr, c: tc, blocked: true });
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    // 👑【自滅防止フィルター】関数の最後で玉(OU)・ボス(BOSS)の危険マスを確実に一括カット！
+    if ((p.t === 'OU' || p.t === 'BOSS') && p.hp === 1) { // 👈 hp === 1 の時限定にする！
+        resTargets = resTargets.filter(t => {
+            if (t.blocked) return false;
+
+            let savedTarget = boardState[t.r][t.c];
+            boardState[t.r][t.c] = p;
+            boardState[r][c] = null;
+
+            let isDangerous = isTileAttackedByEnemy(t.r, t.c, p.p);
+
+            boardState[r][c] = p;
+            boardState[t.r][t.c] = savedTarget;
+
+            return !isDangerous;
+        });
+    
+
+    return resTargets;
     }
 
     if (p.promoted && p.t !== 'HI' && p.t !== 'KA' && p.t !== 'KI' && p.t !== 'SOLDIER' && p.t !== 'SHOGUN') {
@@ -773,7 +945,7 @@ function calculateTargetsPure(origin, mode) {
         if (p.t === 'HI' && p.promoted) extraVectors = [[-1,-1],[-1,1],[1,-1],[1,1]];
         if (p.t === 'KA' && p.promoted && p.mountedPiece !== 'HI') extraVectors = [[-1,0],[1,0],[0,-1],[0,1]];
         
-        // 🐎【修正】馬が飛車(HI)とドッキングした時は「上下左右の全移動（クイーン化）」を追加！
+        // 🐎【修正】馬が飛車(HI)と合体した時は「上下左右の全移動（クイーン化）」を追加！
         if (p.t === 'KA' && p.mountedPiece === 'HI') {
             const hiVectors = [[-1,0],[1,0],[0,-1],[0,1]];
             hiVectors.forEach(v => {
@@ -892,32 +1064,66 @@ function isKingCheckmated(player) {
     for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
             let p = boardState[r] ? boardState[r][c] : null;
-            if (p && p.p === player && (p.t === 'OU' || p.t === 'BOSS') && p.hp === 1) kingPos = { r, c };
+            if (p && p.p === player && (p.t === 'OU' || p.t === 'BOSS') && p.hp === 1) {
+                kingPos = { r, c };
+            }
         }
     }
+    // 玉がいない、または王手されていないなら詰みではない
     if (!kingPos) return false;
     if (!isTileAttackedByEnemy(kingPos.r, kingPos.c, player)) return false;
 
+    // 👑 王自身の脱出・回避シミュレーション
     for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
             let p = boardState[r] ? boardState[r][c] : null;
             if (p && p.p === player) {
-                let moves = calculateTargetsPure({ r, c }, 'move');
-                let attacks = calculateTargetsPure({ r, c }, 'attack');
-                let allMoves = [...moves, ...attacks].filter(m => !m.blocked);
+                let testMoves = [];
 
-                for (let m of allMoves) {
+                if (p.t === 'OU' || p.t === 'BOSS') {
+                    // ⭕ 王の移動先は「空きマス」か「1発で倒せる敵のマス（HP:1）」のみ！
+                    // （※味方のいるマスやHP2の敵は1手で退かせないので逃げ道にしない！）
+                    const vectors = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+                    vectors.forEach(v => {
+                        let tr = r + v[0], tc = c + v[1];
+                        if (tr >= 0 && tr < 9 && tc >= 0 && tc < 9) {
+                            let tp = boardState[tr] ? boardState[tr][tc] : null;
+                            if (!tp) {
+                                testMoves.push({ r: tr, c: tc }); // 空きマス
+                            } else if (tp.p !== player && tp.hp <= 1) {
+                                testMoves.push({ r: tr, c: tc }); // 1手で拿捕（前進）できる敵マス
+                            }
+                        }
+                    });
+                } else {
+                    // 王以外の駒の回避手
+                    let m = calculateTargetsPure({ r, c }, 'move');
+                    let a = calculateTargetsPure({ r, c }, 'attack');
+                    testMoves = [...m, ...a].filter(target => !target.blocked);
+                }
+
+                for (let m of testMoves) {
                     let savedTarget = boardState[m.r][m.c];
-                    boardState[m.r][m.c] = p; boardState[r][c] = null;
+                    boardState[m.r][m.c] = p;
+                    boardState[r][c] = null;
+
                     let newKingR = (p.t === 'OU' || p.t === 'BOSS') ? m.r : kingPos.r;
                     let newKingC = (p.t === 'OU' || p.t === 'BOSS') ? m.c : kingPos.c;
+
                     let stillChecked = isTileAttackedByEnemy(newKingR, newKingC, player);
-                    boardState[r][c] = p; boardState[m.r][m.c] = savedTarget;
-                    if (!stillChecked) return false;
+
+                    boardState[r][c] = p;
+                    boardState[m.r][m.c] = savedTarget;
+
+                    if (!stillChecked) {
+                        return false; // 本当に1手で逃げ切れるなら詰みじゃない
+                    }
                 }
             }
         }
     }
+
+    // 味方に囲まれて1手で逃げられない＆王手を防げないなら「確定で詰み」！
     return true;
 }
 
@@ -1027,10 +1233,20 @@ function evaluateActionMid(from, to, type) {
         if (!actor.promoted && to.r >= 6) score += 100;
     }
 
+// 👎 過去の反省記憶（減点）
     if (cpuBrainData && cpuBrainData.badPositions) {
         cpuBrainData.badPositions.forEach(bad => {
             if (bad.pieceType === actor.t && bad.r === to.r && bad.c === to.c) {
                 score -= Math.floor(bad.penalty * 0.5); 
+            }
+        });
+    }
+
+// 🧠 過去の成功記憶（加点）をスコアに反映！
+    if (cpuBrainData && cpuBrainData.goodPatterns) {
+        cpuBrainData.goodPatterns.forEach(good => {
+            if (good.pieceType === actor.t && good.r === to.r && good.c === to.c) {
+                score += Math.floor(good.bonus * 0.5); // 加点！
             }
         });
     }
@@ -1168,6 +1384,11 @@ function initGame() {
                 p.promoted = false; p.spUsed = false; p.shield = 0; p.mountedPiece = null; p.isCharging = false;
             }
         }
+    }
+
+// 🏰 対局開始時に囲い完成フラグをリセット！
+    if (typeof resetCastleFlags === 'function') {
+        resetCastleFlags();
     }
 
     turn = 1;
@@ -1539,6 +1760,11 @@ function checkPickupItem(r, c, piece) {
             playSE('select');
             addLog(piece.p, `${PIECE_TYPES[piece.t].name}がカプセル💊を回収・除去した！`);
         }
+
+        // 👍【追加】CPU（2P）が回復カプセルを獲得した時のプラス学習！
+        if (piece.p === 2) {
+            learnSuccessPattern(piece.t, r, c, 250, "get_item");
+        }
     }
 }
 
@@ -1577,8 +1803,61 @@ function handleCellClick(r, c) {
         return;
     }
 
-    if (!selected || (piece && piece.p === turn && actionMode !== 'attack' && actionMode !== 'special')) {
+if (!selected || (piece && piece.p === turn && actionMode !== 'attack' && actionMode !== 'special')) {
         if (piece && piece.p === turn) {
+            // ⚠️【追加】王手警告チェック＆回避可能性の検証
+            const checkedKings = checkKingsUnderAttack();
+            const isSelfChecked = checkedKings.some(pos => {
+                let k = boardState[pos.r] ? boardState[pos.r][pos.c] : null;
+                return k && k.p === turn && k.hp === 1; // 👈 hp === 1 を追加
+            });
+
+            if (isSelfChecked) {
+                // 王手中にこの駒を動かして「王手が解除できるか」を全シミュレーション
+                let canEscapeCheck = false;
+                let testOrigin = { r, c };
+                let testMoves = calculateTargetsPure(testOrigin, 'move');
+                let testAttacks = calculateTargetsPure(testOrigin, 'attack');
+                let testAll = [...testMoves, ...testAttacks].filter(m => !m.blocked);
+
+                for (let m of testAll) {
+                    let savedTarget = boardState[m.r][m.c];
+                    boardState[m.r][m.c] = piece; boardState[r][c] = null;
+                    
+                    // 仮移動後に自分の王手が消えたか？
+                    let newKingR = (piece.t === 'OU' || piece.t === 'BOSS') ? m.r : -1;
+                    let newKingC = (piece.t === 'OU' || piece.t === 'BOSS') ? m.c : -1;
+                    if (newKingR === -1) {
+                        // 玉以外の駒を動かした場合は、玉の現在位置を探す
+                        for (let kr = 0; kr < 9; kr++) {
+                            for (let kc = 0; kc < 9; kc++) {
+                                let kp = boardState[kr] ? boardState[kr][kc] : null;
+                                if (kp && kp.p === turn && (kp.t === 'OU' || kp.t === 'BOSS')) {
+                                    newKingR = kr; newKingC = kc;
+                                }
+                            }
+                        }
+                    }
+
+                    let stillChecked = isTileAttackedByEnemy(newKingR, newKingC, turn);
+                    boardState[r][c] = piece; boardState[m.r][m.c] = savedTarget; // 盤面を戻す
+
+                    if (!stillChecked) {
+                        canEscapeCheck = true;
+                        break;
+                    }
+                }
+
+                // 王手を回避できない無関係な駒なら弾く！
+                if (!canEscapeCheck) {
+                    playSE('miss');
+                    let infoEl = document.getElementById('info-panel');
+                    if (infoEl) infoEl.innerText = "⚠️【王手警報】その駒では王手を解除できません！玉の避難か防御を行ってください！";
+                    return;
+                }
+            }
+
+            // ⭕ 王手を解除できる駒（または通常時）なら選択を許可！
             playSE('select'); selectedCapIndex = null; selected = { r, c }; actionMode = 'move'; isSpecialReady = false;
             let spDescBox = document.getElementById('sp-desc-box');
             if (spDescBox) spDescBox.style.display = 'none';
@@ -1588,7 +1867,7 @@ function handleCellClick(r, c) {
             let canUseSpecial = false;
             if (piece.t === 'KI' || piece.t === 'SOLDIER' || piece.t === 'SHOGUN') canUseSpecial = !piece.spUsed;
             else if (piece.t === 'OU') canUseSpecial = !piece.spUsed;
-            else if (piece.t === 'HI') canUseSpecial = (piece.promoted && !piece.spUsed); // 🐉 龍（成駒）のみ限定！
+            else if (piece.t === 'HI') canUseSpecial = (piece.promoted && !piece.spUsed);
             else if (piece.t === 'KA') canUseSpecial = (piece.promoted && !piece.spUsed && captured[turn].length > 0);
             else canUseSpecial = (piece.promoted && !piece.spUsed);
 
@@ -1724,7 +2003,19 @@ function executeAttack(actor, tr, tc, isSpecial, isHeavy = false, isSpearBypass 
     let dmg = (isSpearBypass) ? 1 : ((actor.t === 'KA' && actor.mountedPiece === 'HI') ? 1 : (isHeavy ? 2 : 1));
     let skillName = isSpecial ? (isSpearBypass ? "アルティメットスピア" : PIECE_TYPES[actor.t].spName) : (dmg === 2 ? "強撃(ダメージ2)" : "攻撃");
 
+// 👎 1Pが2Pの駒を取った時のマイナス学習
     if (targetPiece.p === 2) learnFromCapture(targetPiece, tr, tc, actor);
+
+    // 👍【追加】2P（CPU）が1Pの駒にダメージを与えた・拿捕した時のプラス学習！
+    if (actor.p === 2 && targetPiece.p === 1) {
+        let bonusVal = (PIECE_VALUES[targetPiece.t] || 200);
+    // 💥 必殺技での攻撃ならボーナス点（+150）を上乗せ！
+        if (isSpecial) {
+            bonusVal += 150;
+        }
+
+        learnSuccessPattern(actor.t, tr, tc, bonusVal, isSpecial ? "special_attack" : "attack");
+    }
 
     targetPiece.hp -= dmg;
     lastMoveTo = { r: tr, c: tc };
@@ -1858,6 +2149,12 @@ function executeRyuMegaParticleBeam(r, c, actor) {
                     p.hp -= 1;
                     let pName = p.promoted ? PIECE_TYPES[p.t].pName : PIECE_TYPES[p.t].name;
                     
+                    // 👍 CPU（2P）のメガ粒子砲が1Pに命中した時のプラス学習！
+                    if (actor.p === 2 && p.p === 1) {
+                        let bonusVal = (PIECE_VALUES[p.t] || 200) + 200; // メガ粒子砲成功は大ボーナス！
+                        learnSuccessPattern(actor.t, tr, tc, bonusVal, "mega_beam");
+                    }
+
                     if (p.hp <= 0) {
                         let capType = (p.t === 'SOLDIER' || p.t === 'SHOGUN') ? 'KI' : p.t;
                         
@@ -2074,7 +2371,17 @@ function setMode(mode) {
     let btnAttack = document.getElementById('btn-attack');
     let spBtn = document.getElementById('btn-special');
     let spearBtn = document.getElementById('btn-spear');
-    if (btnAttack) btnAttack.className = mode === 'attack' ? 'active-cmd' : '';
+    // 🎯 通常攻撃選択時の「テキスト変更」＆「黄色クラス付与」処理
+    if (btnAttack) {
+        if (mode === 'attack') {
+            btnAttack.innerText = '🎯 目標選択';
+            btnAttack.className = 'active-cmd'; // 黄色発光
+        } else {
+            btnAttack.innerText = '⚔️ 通常攻撃';
+            btnAttack.className = '';
+        }
+    }
+
     if (spBtn) spBtn.className = 'sp-btn';
     if (spearBtn) spearBtn.className = 'sp-btn';
 
@@ -2094,7 +2401,11 @@ function resetSelection() {
 
     if (boardOverlay) boardOverlay.style.display = 'none';
     if (spDescBox) spDescBox.style.display = 'none';
-    if (btnAttack) { btnAttack.disabled = true; btnAttack.className = ''; }
+    if (btnAttack) { 
+    btnAttack.disabled = true; 
+    btnAttack.innerText = '⚔️ 通常攻撃'; // 念のため元の文字に戻す
+    btnAttack.className = ''; 
+}
     if (spBtn) { spBtn.style.display = 'inline-block'; spBtn.disabled = true; spBtn.innerText = "🔥 必殺技未解放"; spBtn.className = 'sp-btn'; }
     if (spearBtn) spearBtn.style.display = 'none';
     
@@ -2146,7 +2457,7 @@ function endTurn() {
             if (p && p.p === turn) {
                 if (p.shield > 0) p.shield--;
                 
-                // 🐎 馬のドッキング5手時限カウントダウン＆自動解除処理
+                // 🐎 馬の合体5手時限カウントダウン＆自動解除処理
                 if (p.t === 'KA' && p.mountedPiece) {
                     p.dockTimer = (p.dockTimer !== undefined ? p.dockTimer : 5) - 1;
                     if (p.dockTimer <= 0) {
@@ -2169,10 +2480,10 @@ function endTurn() {
                                 t: ejectedPiece, p: p.p, hp: PIECE_TYPES[ejectedPiece].hp,
                                 promoted: false, spUsed: false, shield: 0, mountedPiece: null, isCharging: false
                             };
-                            addLog(p.p, `⚠️ ドッキング解除！馬から【${PIECE_TYPES[ejectedPiece].name}】が分離排出された！`);
+                            addLog(p.p, `⚠️ 合体解除！馬から【${PIECE_TYPES[ejectedPiece].name}】が分離排出された！`);
                         } else {
                             captured[p.p].push(ejectedPiece);
-                            addLog(p.p, `⚠️ ドッキング解除！【${PIECE_TYPES[ejectedPiece].name}】を持ち駒へ回収！`);
+                            addLog(p.p, `⚠️ 合体解除！【${PIECE_TYPES[ejectedPiece].name}】を持ち駒へ回収！`);
                         }
                     }
                 }
@@ -2201,6 +2512,11 @@ function endTurn() {
         return;
     }
 
+// 🏰 CPU（2P）のターンが終わった時に「囲い」が完成したかチェック！
+    if (turn === 2 && typeof checkCpuCastleCompletion === 'function') {
+        checkCpuCastleCompletion();
+    }
+    
     resetSelection();
 }
 

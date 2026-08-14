@@ -61,3 +61,52 @@ const CPU_CASTLES = {
         }
     }
 };
+
+
+// 重複加点防止用の管理オブジェクト（一度完成した囲いは対局中に何度も加点しない）
+let rewardedCastles = {};
+
+// 対局開始時に呼び出してフラグをリセットする関数
+function resetCastleFlags() {
+    rewardedCastles = {};
+}
+
+// 🏰 盤面を走査して完成している囲いがあるか判定＆学習させる関数
+function checkCpuCastleCompletion() {
+    if (typeof gameMode !== 'undefined' && gameMode === 'pvp') return;
+
+    // VS_IBISHA, VS_FURIBISHA の全囲いグループをループ
+    Object.keys(CPU_CASTLES).forEach(groupKey => {
+        const group = CPU_CASTLES[groupKey];
+        
+        Object.keys(group).forEach(castleKey => {
+            const castle = group[castleKey];
+
+            // すでにこの対局で加点済みならスキップ
+            if (rewardedCastles[castleKey]) return;
+
+            // 囲いの全ターゲット駒が指定座標（2P）に存在するか判定
+            let isComplete = castle.targets.every(t => {
+                let piece = boardState[t.pos.r] ? boardState[t.pos.r][t.pos.c] : null;
+                return piece && piece.p === 2 && piece.t === t.piece;
+            });
+
+            // 囲いが完成していた場合！
+            if (isComplete) {
+                rewardedCastles[castleKey] = true; // 加点済みフラグを立てる
+
+                // ログに通知表示
+                if (typeof addLog === 'function') {
+                    addLog(2, `🏰 CPU：陣形【${castle.name}】完成！(防衛力+${castle.defensivePower})`);
+                }
+
+                // 各構成駒の位置を「成功パターン（加点）」として記憶保存！
+                if (typeof learnSuccessPattern === 'function') {
+                    castle.targets.forEach(t => {
+                        learnSuccessPattern(t.piece, t.pos.r, t.pos.c, castle.defensivePower, "castle");
+                    });
+                }
+            }
+        });
+    });
+}
