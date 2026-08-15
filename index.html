@@ -228,6 +228,7 @@
 <div id="mode-select">
     <button class="mode-btn active-mode" id="btn-pvp" onclick="changeGameMode('pvp')">2P 対人戦</button>
     <button class="mode-btn" id="btn-pve" onclick="changeGameMode('pve')">1P vs CPU戦</button>
+    <button class="mode-btn" id="btn-cvc" onclick="changeGameMode('cvc')">🤖 CPU vs CPU</button>
     <button class="mode-btn boss-mode-btn" id="btn-boss" onclick="changeGameMode('boss')">😈 VS 大王戦</button>
 </div>
 
@@ -370,6 +371,12 @@ let boardCellsInitialized = false;
 
 let cpuBrainData = { badPositions: [], goodPatterns: [] }; 
 
+// 🟡【NEW】CvC用の独立Brainデータ
+let cvcBrain1P = null;
+let cvcBrain2P = null;
+let cvcBrain1PName = "1P";
+let cvcBrain2PName = "2P";
+
 function loadBrainFromStorage() {
     try {
         const saved = localStorage.getItem('sp_shogi_cpu_brain');
@@ -400,7 +407,8 @@ function updateAiUi() {
 }
 
 function learnFromCapture(targetPiece, atR, atC, attackerPiece) {
-    if (gameMode === 'pvp') return; // 🤝 2P対人戦のときは学習データを記録しない！
+    // 🤝 対人戦（pvp）・観戦（cvc）・大王戦（boss）の時は学習データを記録しない！
+    if (gameMode === 'pvp' || gameMode === 'cvc' || gameMode === 'boss') return; 
     if (targetPiece.p !== 2) return; 
     let penaltyVal = (PIECE_VALUES[targetPiece.t] || 500) * 1.5;
     cpuBrainData.badPositions.push({ pieceType: targetPiece.t, r: atR, c: atC, killer: attackerPiece.t, penalty: penaltyVal });
@@ -409,9 +417,9 @@ function learnFromCapture(targetPiece, atR, atC, attackerPiece) {
 
 // 👍 CPUが成功（ダメージ・拿捕・王手）した時にプラスの記憶を保存
 function learnSuccessPattern(pieceType, toR, toC, bonusVal, reason) {
-    if (gameMode === 'pvp') return; // 対人戦では記録しない
+    // 🤝 対人戦（pvp）・観戦（cvc）・大王戦（boss）の時は学習データを記録しない！
+    if (gameMode === 'pvp' || gameMode === 'cvc' || gameMode === 'boss') return; 
 
-    // 🛡️ 配列未定義エラーを防ぐガード処理
     if (!cpuBrainData.goodPatterns) {
         cpuBrainData.goodPatterns = [];
     }
@@ -870,9 +878,9 @@ function calculateTargetsPure(origin, mode) {
             return !isDangerous;
         });
     
+    }
 
     return resTargets;
-    }
 
     if (p.promoted && p.t !== 'HI' && p.t !== 'KA' && p.t !== 'KI' && p.t !== 'SOLDIER' && p.t !== 'SHOGUN') {
         vectors = [[dir, -1], [dir, 0], [dir, 1], [0, -1], [0, 1], [-dir, 0]];
@@ -1169,6 +1177,50 @@ function shouldCpuUseShield(r, c) {
     return false;
 }
 
+// 🧠 3手先（自分 ➔ 相手 ➔ 自分）の最高・最低結果を予測する思考関数
+function evaluate3Steps(from, to, type) {
+    let savedActor = boardState[from.r][from.c];
+    let savedTarget = boardState[to.r] ? boardState[to.r][to.c] : null;
+
+    // --- 1手目：仮移動 ---
+    boardState[to.r][to.c] = savedActor;
+    boardState[from.r][from.c] = null;
+
+    // --- 2手目：1P（相手）の最高反撃（CPUにとっての最悪パターン）を探す ---
+    let enemyBestScore = -99999;
+    for (let er = 0; er < 9; er++) {
+        for (let ec = 0; ec < 9; ec++) {
+            let ep = boardState[er] ? boardState[er][ec] : null;
+            if (ep && ep.p === 1) {
+                let eAttacks = calculateTargetsPure({ r: er, c: ec }, 'attack');
+                eAttacks.filter(t => !t.blocked).forEach(et => {
+                    let victim = boardState[et.r] ? boardState[et.r][et.c] : null;
+                    if (victim && victim.p === 2) {
+                        let damage = (PIECE_VALUES[victim.t] || 100);
+                        if (damage > enemyBestScore) enemyBestScore = damage;
+                    }
+                });
+            }
+        }
+    }
+
+    let worstCaseForCpu = (enemyBestScore > -99999) ? -enemyBestScore : 0;
+
+    // --- 3手目：取り返せるか（最高パターン） ---
+    let cpuBestFollowUp = 0;
+    let myCovers = getTileCoverCount(to.r, to.c, 2);
+    if (myCovers > 0 && enemyBestScore > 0) {
+        cpuBestFollowUp = enemyBestScore * 0.8; 
+    }
+
+    // 🔄 盤面を必ず元に戻す
+    boardState[from.r][from.c] = savedActor;
+    boardState[to.r][to.c] = savedTarget;
+
+    // 最低パターンと最高パターンを合わせた予測スコア
+    return (worstCaseForCpu * 1.2) + (cpuBestFollowUp * 0.8);
+}
+
 function evaluateActionMid(from, to, type) {
     let score = 0;
     let actor = boardState[from.r][from.c];
@@ -1186,7 +1238,9 @@ function evaluateActionMid(from, to, type) {
     }
 
     if (type === 'move' || type === 'attack') {
-        score += PSTO_MID[to.r][to.c] * 2;
+// 🎯 1Pの時は配列の上下（8 - to.r）を逆にして参照！
+        let pstoRow = actor.p === 1 ? (8 - to.r) : to.r;
+        score += PSTO_MID[pstoRow][to.c] * 2;
 
         if (totalTurnsCount <= 30 && currentTargetCastle) {
             let target = currentTargetCastle.targets.find(t => t.piece === actor.t);
@@ -1212,9 +1266,15 @@ function evaluateActionMid(from, to, type) {
 
         if (actor.t === 'FU') {
             score += 30;
-            let enemyAhead = (to.r < 8 && boardState[to.r + 1] && boardState[to.r + 1][to.c] && boardState[to.r + 1][to.c].p === 1);
-            if (enemyAhead) score += 50;
-            score += (to.r) * 10; 
+            // 🎯 1Pなら上方向（-1）、2Pなら下方向（+1）のマスをチェック
+            let fwdR = actor.p === 1 ? to.r - 1 : to.r + 1;
+            let enemyP = actor.p === 1 ? 2 : 1;
+            if (fwdR >= 0 && fwdR <= 8 && boardState[fwdR] && boardState[fwdR][to.c] && boardState[fwdR][to.c].p === enemyP) {
+                score += 50;
+            }
+            // 1Pは上（rが小さい）ほど前進、2Pは下（rが大きい）ほど前進！
+            let advanceScore = actor.p === 1 ? (8 - to.r) : to.r;
+            score += advanceScore * 10; 
         }
 
         let currentlyThreatened = isEnemyThreatening(from.r, from.c);
@@ -1229,13 +1289,20 @@ function evaluateActionMid(from, to, type) {
         if (futureThreatened && type !== 'attack' && actor.t !== 'FU') {
             score -= (200 + priorityWeight * 0.5);
         }
+        let isEnemyZone = actor.p === 1 ? (to.r <= 2) : (to.r >= 6);
+        if (!actor.promoted && isEnemyZone) score += 100;
+    }
 
-        if (!actor.promoted && to.r >= 6) score += 100;
+// 🟡【NEW】1P/2Pに応じて参照するBrainデータを自動切替！
+    let activeBrain = cpuBrainData;
+    if (gameMode === 'cvc') {
+        if (actor.p === 1 && cvcBrain1P) activeBrain = cvcBrain1P;
+        if (actor.p === 2 && cvcBrain2P) activeBrain = cvcBrain2P;
     }
 
 // 👎 過去の反省記憶（減点）
-    if (cpuBrainData && cpuBrainData.badPositions) {
-        cpuBrainData.badPositions.forEach(bad => {
+    if (activeBrain && activeBrain.badPositions) {
+        activeBrain.badPositions.forEach(bad => {
             if (bad.pieceType === actor.t && bad.r === to.r && bad.c === to.c) {
                 score -= Math.floor(bad.penalty * 0.5); 
             }
@@ -1243,10 +1310,10 @@ function evaluateActionMid(from, to, type) {
     }
 
 // 🧠 過去の成功記憶（加点）をスコアに反映！
-    if (cpuBrainData && cpuBrainData.goodPatterns) {
-        cpuBrainData.goodPatterns.forEach(good => {
+    if (activeBrain && activeBrain.goodPatterns) {
+        activeBrain.goodPatterns.forEach(good => {
             if (good.pieceType === actor.t && good.r === to.r && good.c === to.c) {
-                score += Math.floor(good.bonus * 0.5); // 加点！
+                score += Math.floor(good.bonus * 0.5);
             }
         });
     }
@@ -1255,6 +1322,9 @@ function evaluateActionMid(from, to, type) {
     if (cpuPreviousPosMap[key] && cpuPreviousPosMap[key].r === to.r && cpuPreviousPosMap[key].c === to.c) {
         score -= 300; 
     }
+
+// 🧠【追加】3手先の「最低 vs 最高」シミュレーション結果を加算！
+    score += evaluate3Steps(from, to, type);
 
     score += Math.random() * 5;
     return score;
@@ -1427,18 +1497,105 @@ function updateBossHpBar() {
     }
 }
 
-function changeGameMode(mode) {
+async function changeGameMode(mode) {
+    if (gameMode === mode && totalTurnsCount === 0) return;
+
+    if (totalTurnsCount > 0) {
+        let modeNames = { 'pvp': '2P 対人戦', 'pve': '1P vs CPU戦', 'cvc': '🤖 CPU vs CPU', 'boss': '😈 VS 大王戦' };
+        let confirmed = confirm(`現在進行中の対局を破棄して【${modeNames[mode]}】を開始しますか？`);
+        if (!confirmed) return;
+    }
+
     playSE('select');
+
+    // タイマー一括物理クリア
+    isProcessingTurn = false;
+    let highestTimeoutId = setTimeout(";");
+    for (let i = 0; i <= highestTimeoutId; i++) clearTimeout(i);
+
+    // 🤖 CvCモード選択時のBrain読み込み処理
+    if (mode === 'cvc') {
+        cvcBrain1P = null;
+        cvcBrain2P = null;
+
+        let useCustom = confirm(
+            "🤖【CPU vs CPUモード設定】\n\n" +
+            "・[OK] ➔ Brainファイルを読み込んで対戦（2つ選択で1P/2P別々、1つ選択で共通）\n" +
+            "・[キャンセル] ➔ 現在のデフォルトBrain同士で対戦"
+        );
+
+        if (useCustom) {
+            try {
+                let brains = await loadCvcBrainFiles();
+                if (brains.length >= 2) {
+                    cvcBrain1P = brains[0].data;
+                    cvcBrain1PName = brains[0].name;
+                    cvcBrain2P = brains[1].data;
+                    cvcBrain2PName = brains[1].name;
+                    alert(`⚔️【1P: ${cvcBrain1PName}】vs【2P: ${cvcBrain2PName}】で対局を開始します！`);
+                } else if (brains.length === 1) {
+                    cvcBrain1P = brains[0].data;
+                    cvcBrain1PName = brains[0].name;
+                    cvcBrain2P = brains[0].data;
+                    cvcBrain2PName = brains[0].name;
+                    alert(`⚔️【${cvcBrain1PName}】の同型再戦で対局を開始します！`);
+                }
+            } catch (err) {
+                alert("⚠️ ファイルが選択されなかったため、デフォルトのBrainで対局を開始します。");
+                cvcBrain1P = null;
+                cvcBrain2P = null;
+                cvcBrain1PName = "1P"; cvcBrain2PName = "2P";
+            }
+        } else {
+            cvcBrain1PName = "1P"; cvcBrain2PName = "2P";
+        }
+    }
+
     gameMode = mode;
     const pvpBtn = document.getElementById('btn-pvp');
     const pveBtn = document.getElementById('btn-pve');
+    const cvcBtn = document.getElementById('btn-cvc');
     const bossBtn = document.getElementById('btn-boss');
     
-    // 🎛️ モード切り替え時にボタンのクラス（アクティブ表示）を更新
     if (pvpBtn) pvpBtn.className = 'mode-btn ' + (mode === 'pvp' ? 'active-mode' : '');
     if (pveBtn) pveBtn.className = 'mode-btn ' + (mode === 'pve' ? 'active-mode' : '');
+    if (cvcBtn) cvcBtn.className = 'mode-btn ' + (mode === 'cvc' ? 'active-mode' : '');
     if (bossBtn) bossBtn.className = 'mode-btn boss-mode-btn ' + (mode === 'boss' ? 'active-mode' : '');
+
     initGame();
+}
+
+// 🟡【NEW】CvC用ファイル読み込み関数（ブラウザブロック回避版）
+function loadCvcBrainFiles() {
+    return new Promise((resolve, reject) => {
+        const input = document.getElementById('cvc-import-multi');
+        if (!input) return reject("Input element not found");
+        
+        input.value = ""; // 選択リセット
+        input.onchange = async (e) => {
+            const files = Array.from(e.target.files);
+            if (!files || files.length === 0) return reject("No file selected");
+            
+            let loadedBrains = [];
+            for (let file of files) {
+                try {
+                    let text = await file.text();
+                    let data = JSON.parse(text);
+                    if (data && Array.isArray(data.badPositions)) {
+                        // 🎯 .json を除いたファイル名を取得
+                        let cleanName = file.name.replace(/\.json$/i, ''); 
+                        loadedBrains.push({ data: data, name: cleanName });
+                    }
+                } catch (err) { console.log("Read error:", err); }
+            }
+
+            if (loadedBrains.length > 0) resolve(loadedBrains);
+            else reject("Invalid files");
+        };
+
+        // ブラウザのブロックを防ぐため即座に参照画面を開く
+        input.click();
+    });
 }
 
 function addLog(player, text) {
@@ -1520,7 +1677,12 @@ function renderCaptured() {
         const labelEl = document.getElementById(`cap-label-${p}`);
         if (!listEl || !labelEl) return;
         listEl.innerHTML = '';
-        let pLabel = (p === 1) ? "1P持ち駒" : ((gameMode === 'boss' || gameMode === 'pve') ? "敵持ち駒" : "2P持ち駒");
+        let pLabel = "";
+        if (gameMode === 'cvc') {
+            pLabel = (p === 1) ? `🟦 ${cvcBrain1PName}` : `🟨 ${cvcBrain2PName}`;
+        } else {
+            pLabel = (p === 1) ? "1P持ち駒" : ((gameMode === 'boss' || gameMode === 'pve') ? "敵持ち駒" : "2P持ち駒");
+        }
         labelEl.innerText = pLabel;
         let counts = {};
         captured[p].forEach(type => { counts[type] = (counts[type] || 0) + 1; });
@@ -1960,7 +2122,8 @@ function checkPromotion(fromR, toR, piece) {
         const isEnemyZone = (p, r) => (p === 1 && r <= 2) || (p === 2 && r >= 6);
         if (isEnemyZone(piece.p, fromR) || isEnemyZone(piece.p, toR)) {
             let doPromote = true;
-            if (turn === 1 || (turn === 2 && gameMode === 'pvp')) {
+            // 🎯【修正】CvCモードの時は確認ポップアップを出さずに自動で成る！
+            if ((turn === 1 && gameMode !== 'cvc') || (turn === 2 && gameMode === 'pvp')) {
                 doPromote = confirm("成りますか？（キャンセルでそのまま）");
             }
             if (doPromote) {
@@ -2434,7 +2597,12 @@ function resetSelection() {
     let infoEl = document.getElementById('info-panel');
     if (infoEl) infoEl.innerText = pStr;
 
-    if ((gameMode === 'pve' || gameMode === 'boss') && turn === 2) {
+// 🧠 CPUの自動思考発動ルール
+    if (gameMode === 'cvc') {
+        // 🤖 CPU vs CPUモード：1P・2P関係なく常に自動思考！
+        setTimeout(playCPUTurn, 600);
+    } else if ((gameMode === 'pve' || gameMode === 'boss') && turn === 2) {
+        // ⚔️ 1P vs CPU / 大王戦：敵（2P）のターンの時だけ自動思考！
         setTimeout(playCPUTurn, 600);
     }
 }
@@ -2523,11 +2691,15 @@ function endTurn() {
 // --- CPU AI（思考＆戦術選定システム） ---
 function playCPUTurn() {
     let possibleActions = [];
+// 🟡【NEW】現在ターンのプレイヤー（1Pか2Pか）を取得！
+    let activeP = (gameMode === 'cvc') ? turn : 2;
+    if (gameMode !== 'cvc' && turn === 1) return; // 🛡️ CvC以外で1Pターンの時はCPU思考を絶対実行しない！
+    let enemyP = activeP === 1 ? 2 : 1;
 
     let checkedKings = checkKingsUnderAttack();
     let myKingChecked = checkedKings.some(pos => {
         let p = boardState[pos.r] ? boardState[pos.r][pos.c] : null;
-        return p && p.p === 2;
+        return p && p.p === activeP; // 👈 2 から activeP に変更
     });
 
 // 😈 【VS大王戦：3体順番アクションシステム（分裂バグ防止＆滑らか演出版）】
@@ -2660,15 +2832,15 @@ function playCPUTurn() {
         return;
     }
 
-    // 🛡️ 【持ち駒を打つ判定】
-    if (captured[2].length > 0) {
-        captured[2].forEach((pieceType, capIndex) => {
+// 🛡️ 【持ち駒を打つ判定】
+    if (captured[activeP].length > 0) {
+        captured[activeP].forEach((pieceType, capIndex) => {
             let emptyCells = [];
             for(let r=0; r<9; r++){
                 for(let c=0; c<9; c++){
                     if(!boardState[r][c]) {
-                        if (pieceType === 'FU' && hasPawnInColumn(2, c)) {}
-                        else if (isInvalidDropPosition(2, pieceType, r)) {}
+                        if (pieceType === 'FU' && hasPawnInColumn(activeP, c)) {}
+                        else if (isInvalidDropPosition(activeP, pieceType, r)) {}
                         else {
                             let score = PIECE_VALUES[pieceType] || 15;
                             let isShieldDrop = false; // 🛡️ 盾（合駒）として機能したかフラグ
@@ -2725,10 +2897,16 @@ function playCPUTurn() {
 
                             score += PSTO_MID[r][c] * 2;
 
+                            // 🎯【追加】自分の利き（角や桂馬のサポート）があるマスへの打ち込みを大加点！
+                            let myCovers = getTileCoverCount(r, c, 2); 
+                            if (myCovers > 0) {
+                                score += myCovers * 300; // 利きが重なるマス（1三など）に爆発的な加点！
+                            }
+
                             if (myKingChecked) {
-                                boardState[r][c] = { t: pieceType, p: 2, hp: 1 };
+                                boardState[r][c] = { t: pieceType, p: activeP, hp: 1 };
                                 let stillChecked = checkKingsUnderAttack().some(pos => {
-                                    let k = boardState[pos.r][pos.c]; return k && k.p === 2;
+                                    let k = boardState[pos.r][pos.c]; return k && k.p === activeP;
                                 });
                                 boardState[r][c] = null;
                                 if (stillChecked) return;
@@ -2748,7 +2926,7 @@ function playCPUTurn() {
     for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
             let p = boardState[r] ? boardState[r][c] : null;
-            if (p && p.p === 2) {
+            if (p && p.p === activeP) {
                 let origin = { r, c };
                 let canSp = false;
                 if (p.t === 'KI' || p.t === 'SOLDIER' || p.t === 'SHOGUN') canSp = !p.spUsed;
@@ -2781,6 +2959,13 @@ function playCPUTurn() {
                             possibleActions.push({ type: 'special', from: origin, to: t, spType: 'spear', score: score });
                         });
                         selectedSpecialType = 'shield';
+
+                        // 🟡【NEW】王(OU)のワープは「王手されている時だけ」使うように制御！
+                    } else if (p.t === 'OU') {
+                        if (myKingChecked) {
+                            possibleActions.push({ type: 'special', from: origin, to: origin, score: 2000 });
+                        }
+
                     } else if (p.t !== 'BOSS') {
                         let spTargets = calculateTargetsPure(origin, 'special');
                         spTargets.filter(t => !t.blocked).forEach(t => {
@@ -2891,9 +3076,9 @@ function playCPUTurn() {
 
     isProcessingTurn = true;
 
-    if (best.type === 'drop') {
-        let pieceType = captured[2].splice(best.capIndex, 1)[0];
-        boardState[best.to.r][best.to.c] = { t: pieceType, p: 2, hp: PIECE_TYPES[pieceType].hp, promoted: false, spUsed: false, shield: 0, mountedPiece: null, isCharging: false };
+if (best.type === 'drop') {
+        let pieceType = captured[activeP].splice(best.capIndex, 1)[0];
+        boardState[best.to.r][best.to.c] = { t: pieceType, p: activeP, hp: PIECE_TYPES[pieceType].hp, promoted: false, spUsed: false, shield: 0, mountedPiece: null, isCharging: false };
         lastMoveTo = { r: best.to.r, c: best.to.c };
         playSE('select');
         addLog(2, `CPUが持ち駒【${PIECE_TYPES[pieceType].name}】を召喚！`);
@@ -2978,5 +3163,10 @@ function getTargetsFor(origin, mode) {
 
 window.onload = function() { initGame(); };
 </script>
+
+<!-- 🟡【NEW】CvCモード用の隠しファイル読み込みインプット -->
+<!-- 🟡【NEW】CvCモード用インプット（複数選択対応） -->
+<input type="file" id="cvc-import-multi" style="display:none;" accept=".json" multiple>
+
 </body>
 </html>
