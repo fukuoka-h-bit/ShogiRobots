@@ -221,6 +221,9 @@
     animation: blink 0.8s infinite alternate;
 }
 
+/* 🟡【NEW】OFFの時はHPバーをまるごと消す */
+body.hide-hp .hp-bar { display: none !important; }
+
 </style>
 </head>
 <body>
@@ -235,6 +238,7 @@
 <div id="audio-controls">
     <button class="audio-btn" id="btn-bgm" onclick="toggleBGM()">🎵 BGM: ON</button>
     <button class="audio-btn" id="btn-se" onclick="toggleSE()">🔊 SE: ON</button>
+    <button class="audio-btn" id="btn-hp" onclick="toggleHP()">❤️ HP: ON</button>
 </div>
 
 <div id="boss-hp-container">
@@ -481,6 +485,10 @@ function preloadImages() {
         let img1 = new Image(); img1.src = `image/${data.normal}`;
         let img2 = new Image(); img2.src = `image/${data.prom}`;
     });
+    // 🐎 合体用画像の事前ロード
+    ['fuMa.png', 'kyoMa.jpg', 'kinMa.jpg', 'uMa.jpg', 'RyuMa.jpg'].forEach(file => {
+        let img = new Image(); img.src = `image/${file}`;
+    });
 }
 
 function createRobotPieceSVG(text, player, isPromoted, isBoss) {
@@ -503,11 +511,27 @@ function createRobotPieceSVG(text, player, isPromoted, isBoss) {
 function createPieceHTML(piece) {
     let typeData = PIECE_IMAGE_MAP[piece.t];
     let fileName = piece.promoted ? typeData.prom : typeData.normal;
+
+    // 🐎【確実判定版】角（KA）が成っていて、かつ mountedPiece が存在する場合
+    if (piece.t === 'KA' && piece.promoted && piece.mountedPiece) {
+        let m = piece.mountedPiece;
+        console.log("🐎 馬の合体検知！合体相手:", m); // 👈 デバッグ用ログ
+
+        if (m === 'FU') fileName = 'fuMa.png';
+        else if (m === 'KY' || m === 'KE') fileName = 'kyoMa.png';
+        else if (m === 'GI' || m === 'KI') fileName = 'kinMa.png';
+        else if (m === 'KA') fileName = 'uMa.png';
+        else if (m === 'HI') fileName = 'RyuMa.png';
+
+        console.log("📸 切り替え画像ファイル名:", fileName);
+    }
+
     let imgPath = `image/${fileName}`;
     let nameStr = piece.promoted ? PIECE_TYPES[piece.t].pName : PIECE_TYPES[piece.t].name;
     let fallbackSvg = createRobotPieceSVG(nameStr, piece.p, piece.promoted, piece.t === 'BOSS');
+
     return `
-        <img class="piece-img" src="${imgPath}" alt="${nameStr}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+        <img class="piece-img" src="${imgPath}" alt="${nameStr}" onerror="console.log('❌ 画像読み込み失敗:', this.src); this.style.display='none'; this.nextElementSibling.style.display='block';">
         <div class="fallback-svg-container" style="display:none; width:100%; height:100%;">${fallbackSvg}</div>`;
 }
 
@@ -602,6 +626,16 @@ function toggleSE() {
     const btn = document.getElementById('btn-se');
     if (seMuted) { btn.innerText = "🔊 SE: OFF"; btn.classList.add('muted'); } 
     else { btn.innerText = "🔊 SE: ON"; btn.classList.remove('muted'); }
+}
+
+// 🟡【NEW】HP表示のON/OFF切り替え（CSSのクラスを付け外しするだけ）
+function toggleHP() {
+    document.body.classList.toggle('hide-hp');
+    const btn = document.getElementById('btn-hp');
+    const isHidden = document.body.classList.contains('hide-hp');
+    btn.innerText = isHidden ? "❤️ HP: OFF" : "❤️ HP: ON";
+    btn.classList.toggle('muted', isHidden);
+    playSE('select');
 }
 
 let bgmAudio = null; // mp3用のオーディオオブジェクト
@@ -1871,6 +1905,10 @@ function executeHorseDocking(capIndex) {
         isProcessingTurn = false; isHorseDockingMode = false;
         let boardOverlay = document.getElementById('board-overlay');
         if (boardOverlay) boardOverlay.style.display = 'none';
+
+        // 🎯【ここを追加！】合体データが入ったので盤面を再描画して画像を変身させる！
+        renderBoard();
+
         setTimeout(endTurn, 300);
     });
 }
