@@ -16,21 +16,132 @@
 <meta name="apple-mobile-web-app-title" content="宇宙世紀ロボ将棋大戦">
 
 <style>
+
+/* 🌌 レトロサイバーグリッド背景（常時配置） */
+.cyber-bg-grid {
+    position: fixed; /* absolute から fixed に変更 */
+    width: 200%; height: 200%;
+    top: -50%; left: -50%;
+    background-image: 
+        linear-gradient(to right, rgba(255, 0, 128, 0.2) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 255, 255, 0.2) 1px, transparent 1px);
+    background-size: 40px 40px;
+    transform: perspective(300px) rotateX(60deg);
+    animation: grid-move 8s linear infinite;
+    z-index: 1; /* 👈 プレイ画面（#main-layout）の後ろに回す */
+    pointer-events: none;
+}
+
+/* 🚀 タイトル画面レイアウト */
+#title-screen {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: #0a0a12;
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    padding: 20px 10px;
+}
+
+/* 一番奥に敷く背景画像 */
+#title-screen::before {
+    content: "";
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: url('image/background.png') center/cover no-repeat;
+    z-index: 0; /* 👈 格子（z-index: 1）よりも奥に配置！ */
+}
+
+
+@keyframes grid-move {
+    0% { transform: perspective(300px) rotateX(60deg) translateY(0); }
+    100% { transform: perspective(300px) rotateX(60deg) translateY(40px); }
+}
+
+.title-header {
+    position: relative;
+    z-index: 10;
+    margin-bottom: 25px;
+}
+
+.title-logo-text {
+    font-size: 24px;
+    font-weight: 900;
+    color: #00ffff;
+    text-shadow: 0 0 10px #00ffff, 0 0 20px #ff00ff;
+    letter-spacing: 2px;
+    margin: 0;
+}
+
+.title-sub-text {
+    font-size: 10px;
+    color: #ffaa00;
+    letter-spacing: 3px;
+    margin-top: 4px;
+}
+
+/* 🔷 六角形ボタンの格子配置 */
+.hex-grid-container {
+    position: relative;
+    z-index: 10;
+    display: grid;
+    grid-template-columns: repeat(2, 120px);
+    gap: 15px;
+    justify-content: center;
+}
+
+.hex-btn {
+    width: 120px;
+    height: 105px;
+    background: linear-gradient(135deg, #00ffff, #ff00ff);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: transform 0.2s, filter 0.2s;
+    padding: 3px; /* 枠線線幅 */
+}
+
+.hex-btn:hover {
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 10px #00ffff);
+}
+
+.hex-inner {
+    width: 100%;
+    height: 100%;
+    background: #12121c;
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+}
+
+.hex-icon { font-size: 20px; }
+.hex-title {
+    font-size: 11px;
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 0 0 5px #00ffff;
+}
+
+.disabled-hex {
+    opacity: 0.5;
+    filter: grayscale(0.8);
+}
+
+
     * { box-sizing: border-box; }
     body { font-family: sans-serif; background: #1a1a24; color: #fff; text-align: center; margin: 0; padding: 10px; user-select: none; }
     h1 { margin: 0 0 5px 0; color: #4da6ff; font-size: 18px; }
     #info-panel { font-size: 0.85rem; margin-bottom: 8px; height: 32px; color: #ffcc00; font-weight: bold; line-height: 1.3; }
     
-    /* 🎛️ モード選択ボタン（選択中の黄色発光スタイル） */
-    #mode-select { display: flex; justify-content: center; gap: 6px; margin-bottom: 8px; }
-    .mode-btn { padding: 6px 12px; font-size: 11px; background: #2a2a3a; color: #aaa; border: 1px solid #555; border-radius: 4px; cursor: pointer; font-weight: bold; transition: all 0.2s; }
-    .mode-btn:hover { background: #3a3a4c; color: #fff; }
-    .mode-btn.active-mode { 
-        background: #665500 !important; 
-        color: #ffff00 !important; 
-        border: 2px solid #ffff00 !important; 
-        box-shadow: 0 0 10px rgba(255, 255, 0, 0.6) !important;
-    }
 
     #audio-controls { margin-bottom: 8px; }
     .audio-btn { padding: 4px 8px; font-size: 11px; background: #224466; color: #00ccff; border: 1px solid #00ccff; border-radius: 4px; cursor: pointer; }
@@ -228,17 +339,57 @@ body.hide-hp .hp-bar { display: none !important; }
 </head>
 <body>
 
-<div id="mode-select">
-    <button class="mode-btn active-mode" id="btn-pvp" onclick="changeGameMode('pvp')">2P 対人戦</button>
-    <button class="mode-btn" id="btn-pve" onclick="changeGameMode('pve')">1P vs CPU戦</button>
-    <button class="mode-btn" id="btn-cvc" onclick="changeGameMode('cvc')">🤖 CPU vs CPU</button>
-    <button class="mode-btn boss-mode-btn" id="btn-boss" onclick="changeGameMode('boss')">😈 VS 大王戦</button>
+<!-- うねうねするサイバー・グリッド -->
+<div class="cyber-bg-grid"></div>
+
+<!-- 🚀 レトロサイバー・タイトル画面（仮） -->
+<div id="title-screen">
+    <div class="title-header">
+        <h1 class="title-logo-text">宇宙世紀ロボ将棋大戦</h1>
+        <p class="title-sub-text">SPACE CENTURY ROBOT SHOGI WAR</p>
+    </div>
+
+    <div class="hex-grid-container">
+        <div class="hex-btn" onclick="startDummyGame('pve')">
+            <div class="hex-inner">
+                <span class="hex-title">CPU対戦</span>
+            </div>
+        </div>
+        <div class="hex-btn" onclick="startDummyGame('pvp')">
+            <div class="hex-inner">
+                <span class="hex-title">2P対戦</span>
+            </div>
+        </div>
+        <div class="hex-btn" onclick="startDummyGame('boss')">
+            <div class="hex-inner">
+                <span class="hex-title">ボスラッシュ</span>
+            </div>
+        </div>
+        <div class="hex-btn" onclick="startDummyGame('cvc')">
+            <div class="hex-inner">
+                <span class="hex-title">CPU vs CPU</span>
+            </div>
+        </div>
+        <div class="hex-btn disabled-hex" onclick="alert('準備中：CPUコロシアム')">
+            <div class="hex-inner">
+                <span class="hex-icon">🏆</span>
+                <span class="hex-title">CPUコロシアム</span>
+            </div>
+        </div>
+        <div class="hex-btn disabled-hex" onclick="alert('準備中：兵器装備')">
+            <div class="hex-inner">
+                <span class="hex-icon">🛒</span>
+                <span class="hex-title">兵器装備</span>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div id="audio-controls">
     <button class="audio-btn" id="btn-bgm" onclick="toggleBGM()">🎵 BGM: ON</button>
     <button class="audio-btn" id="btn-se" onclick="toggleSE()">🔊 SE: ON</button>
     <button class="audio-btn" id="btn-hp" onclick="toggleHP()">❤️ HP: ON</button>
+    <button class="audio-btn" id="btn-title" onclick="backToTitle()" style="background:#443322; border-color:#ffaa00; color:#ffaa00;">🏠 タイトル</button>
 </div>
 
 <div id="boss-hp-container">
@@ -295,6 +446,40 @@ body.hide-hp .hp-bar { display: none !important; }
 
 <script src="tactics.js"></script>
 <script>
+
+// 🚀 仮タイトル画面からの遷移処理
+function startDummyGame(mode) {
+    const titleEl = document.getElementById('title-screen');
+    if (titleEl) titleEl.style.display = 'none'; // タイトルを閉じる
+    playSE('select');
+    changeGameMode(mode); // 選択したモードでゲーム開始
+}
+
+// 🏠 ゲーム画面からタイトルへ戻る処理（確認ポップアップ付き）
+function backToTitle() {
+    if (confirm("現在の対局を中断してタイトル画面に戻りますか？")) {
+        playSE('select');
+        
+        // 1. 進行中のタイマーを物理クリア
+        isProcessingTurn = false;
+        let highestTimeoutId = setTimeout(";");
+        for (let i = 0; i <= highestTimeoutId; i++) clearTimeout(i);
+
+        // 2. 対局状態・ターン数を完全リセット（これで別モード選択時の確認ポップアップが出なくなります！）
+        totalTurnsCount = 0;
+        selected = null;
+        selectedCapIndex = null;
+        actionMode = 'move';
+        isSpecialReady = false;
+        isHorseDockingMode = false;
+        initGame();
+
+        // 3.タイトル画面を表示
+        const titleEl = document.getElementById('title-screen');
+        if (titleEl) titleEl.style.display = 'flex';
+    }
+}
+
 // --- 定数定義 ---
 const PIECE_TYPES = {
     FU: { name: "歩", pName: "と", hp: 2, spName: "ダブルバースト", desc: "【連射技】ヒット率50%の攻撃を2連射" },
@@ -1586,6 +1771,7 @@ async function changeGameMode(mode) {
     }
 
     gameMode = mode;
+
     const pvpBtn = document.getElementById('btn-pvp');
     const pveBtn = document.getElementById('btn-pve');
     const cvcBtn = document.getElementById('btn-cvc');
