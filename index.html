@@ -125,9 +125,9 @@
 
 .hex-icon { font-size: 20px; }
 .hex-title {
-    font-size: 11px;
-    font-weight: bold;
+    font-size: 1.0rem;
     color: #fff;
+    letter-spacing: 1px;
     text-shadow: 0 0 5px #00ffff;
 }
 
@@ -372,13 +372,11 @@ body.hide-hp .hp-bar { display: none !important; }
         </div>
         <div class="hex-btn disabled-hex" onclick="alert('準備中：CPUコロシアム')">
             <div class="hex-inner">
-                <span class="hex-icon">🏆</span>
-                <span class="hex-title">CPUコロシアム</span>
+                <span class="hex-title">AIコロシアム</span>
             </div>
         </div>
         <div class="hex-btn disabled-hex" onclick="alert('準備中：兵器装備')">
             <div class="hex-inner">
-                <span class="hex-icon">🛒</span>
                 <span class="hex-title">兵器装備</span>
             </div>
         </div>
@@ -432,15 +430,65 @@ body.hide-hp .hp-bar { display: none !important; }
         <div id="log-box"></div>
     </div>
 
-    <!-- AI学習データ管理パネル -->
-    <div id="ai-panel">
-        <div>🧠 CPU記憶: <span id="ai-memory-count" style="color:#00ffff; font-weight:bold;">0</span> 件</div>
-        <div style="display:flex; gap:4px;">
-            <button class="ai-btn" onclick="exportBrainFile()">💾 保存</button>
-            <button class="ai-btn" onclick="document.getElementById('import-file-input').click()">📂 読込</button>
-            <button class="ai-btn" style="background:#550000; border-color:#ff3333;" onclick="resetCpuBrain()">🧹 リセット</button>
+<!-- 🧠 AI学習データ管理パネル（スロット＆コード対応） -->
+<div id="ai-panel">
+    <div style="margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
+        <div>🧠 経験値: <span id="ai-memory-count" style="color:#00ffff; font-weight:bold;">0</span> EXP</div>
+    </div>
+
+    <!-- 🎰 スロット切替（1〜5） -->
+    <div style="margin-bottom: 6px; color: #00ff66; display: flex; justify-content: space-between; align-items: center;">
+    AI切替</div>
+    <div style="display: flex; gap: 4px; align-items: center; margin-bottom: 8px;">
+        <select id="brain-slot-select" style="background: #2a2a3a; color: #fff; border: 1px solid #666; padding: 2px 4px; border-radius: 3px; font-size: 11px;">
+            <option value="1">Slot 1</option>
+            <option value="2">Slot 2</option>
+            <option value="3">Slot 3</option>
+            <option value="4">Slot 4</option>
+            <option value="5">Slot 5</option>
+        </select>
+        <button class="ai-btn" style="background:#550000; border-color:#ff3333;" onclick="resetCpuBrain()">Reset</button>
+        <button class="ai-btn" onclick="saveToSlot()">保存</button>
+        <button class="ai-btn" onclick="loadFromSlot()">読込</button>
+    </div>
+
+    <!-- 📋 バックアップ用コード出力・入力 -->
+    <div style="margin-bottom: 6px; "display: flex; gap: 4px;">
+        <button class="ai-btn" onclick="openBackupModal()">BackUpCode</button>
+    </div>
+
+    <!-- 🟡【重要】ここに隠しinputタグを配置！これが無いとファイル選択が開かない -->
+    <input type="file" id="import-file-input" style="display:none;" accept=".json" onchange="importBrainFile(event)">
+    
+</div>
+
+
+<!-- 📜 バックアップコード用モーダル（ポップアップ） -->
+<div id="backup-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:600; justify-content:center; align-items:center;">
+    <div style="background:#181824; border:2px solid #00ffff; border-radius:8px; width:90%; max-width:380px; padding:15px; box-shadow:0 0 15px rgba(0,255,255,0.4); text-align:left;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <span style="font-weight:bold; color:#00ffff; font-size:14px;">📜 バックアップコード</span>
+            <button onclick="closeBackupModal()" style="background:none; border:none; color:#ff3366; font-weight:bold; font-size:18px; cursor:pointer;">✖</button>
         </div>
-        <input type="file" id="import-file-input" style="display:none;" accept=".json" onchange="importBrainFile(event)">
+
+        <p style="font-size:10px; color:#aaa; margin:0 0 8px 0; line-height:1.3;">
+            学習データをテキストコード化してバックアップ・復元します。
+        </p>
+
+        <!-- コード表示・入力エリア -->
+        <textarea id="brain-code-textarea" placeholder="ここにバックアップコードが表示・または入力できます..." style="width:100%; height:70px; background:#0a0a12; border:1px solid #00ffff; color:#00ffff; font-size:10px; padding:6px; border-radius:4px; resize:none; font-family:monospace; margin-bottom:8px;"></textarea>
+
+        <!-- ボタン群（1段目：コード用） -->
+        <div style="display:flex; gap:6px; margin-bottom:12px;">
+            <button class="ai-btn" style="flex:1;" onclick="generateAndCopyCode()">📋 出力＆コピー</button>
+            <button class="ai-btn" style="flex:1; background:#005544; border-color:#00ffcc;" onclick="applyBrainCode()">📥 コードから復元</button>
+        </div>
+        <!-- ボタン群（2段目：従来ファイル用も念のため残す場合） -->
+        <div style="display:flex; gap:6px; border-top:1px solid #333; padding-top:8px;">
+            <button class="ai-btn" style="flex:1; background:#333;" onclick="exportBrainFile()">💾 ファイル保存</button>
+            <button class="ai-btn" style="flex:1; background:#333;" onclick="document.getElementById('import-file-input').click()">📂 ファイル読込</button>
+        </div>
+        </div>
     </div>
 </div>
 
@@ -664,6 +712,36 @@ function resetCpuBrain() {
     }
 }
 
+// 🎰 スロットへ保存
+function saveToSlot() {
+    const slot = document.getElementById('brain-slot-select').value;
+    try {
+        localStorage.setItem(`sp_shogi_brain_slot_${slot}`, JSON.stringify(cpuBrainData));
+        playSE('select');
+        alert(`💾 スロット ${slot} に学習データを保存しました！`);
+    } catch (e) {
+        alert("❌ 保存に失敗しました。");
+    }
+}
+
+// 🎰 スロットから読み込み
+function loadFromSlot() {
+    const slot = document.getElementById('brain-slot-select').value;
+    try {
+        const saved = localStorage.getItem(`sp_shogi_brain_slot_${slot}`);
+        if (saved) {
+            cpuBrainData = JSON.parse(saved);
+            saveBrainToStorage(); // カレントデータにも反映
+            playSE('select');
+            alert(`📂 スロット ${slot} から学習データをロードしました！`);
+        } else {
+            alert(`⚠️ スロット ${slot} には保存データがありません。`);
+        }
+    } catch (e) {
+        alert("❌ 読み込みに失敗しました。");
+    }
+}
+
 function preloadImages() {
     Object.keys(PIECE_IMAGE_MAP).forEach(key => {
         let data = PIECE_IMAGE_MAP[key];
@@ -691,6 +769,70 @@ function createRobotPieceSVG(text, player, isPromoted, isBoss) {
             <text x="50" y="62" font-family="sans-serif" font-weight="900" font-size="36" fill="${color}" text-anchor="middle">${text}</text>
         </g>
     </svg>`;
+}
+
+// 📜 バックアップモーダルの開閉
+function openBackupModal() {
+    playSE('select');
+    const modal = document.getElementById('backup-modal');
+    if (modal) modal.style.display = 'flex';
+}
+
+function closeBackupModal() {
+    playSE('select');
+    const modal = document.getElementById('backup-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+// 📋 現在のAIデータをコード化してテキストエリアへ表示 ＆ 自動コピー
+function generateAndCopyCode() {
+    try {
+        const jsonStr = JSON.stringify(cpuBrainData);
+        // 日本語（UTF-8）崩れ防止のBase64エンコード
+        const code = btoa(encodeURIComponent(jsonStr));
+        
+        const areaEl = document.getElementById('brain-code-textarea');
+        if (areaEl) areaEl.value = code;
+
+        // クリップボードへコピー
+        navigator.clipboard.writeText(code).then(() => {
+            playSE('special');
+            alert("📋 バックアップコードを生成し、クリップボードにコピーしました！\nメモ帳などに貼り付けて保管してください。");
+        }).catch(() => {
+            playSE('select');
+            alert("⚠️ コードを出力しました。テキスト枠内を全選択してコピーしてください。");
+        });
+    } catch (e) {
+        alert("❌ コード生成に失敗しました。");
+    }
+}
+
+// 📥 入力されたコードからAIデータを復元
+function applyBrainCode() {
+    const areaEl = document.getElementById('brain-code-textarea');
+    const code = areaEl ? areaEl.value.trim() : "";
+
+    if (!code) {
+        alert("⚠️ テキストエリアに復元したいバックアップコードを貼り付けてください。");
+        return;
+    }
+
+    try {
+        const jsonStr = decodeURIComponent(atob(code));
+        const parsed = JSON.parse(jsonStr);
+
+        if (parsed && Array.isArray(parsed.badPositions)) {
+            cpuBrainData = parsed;
+            saveBrainToStorage(); // ストレージ保存＆UI更新
+            playSE('special');
+            alert("🎉 バックアップコードからの復元が完了しました！");
+            closeBackupModal();
+        } else {
+            alert("❌ 不正なコード形式です。");
+        }
+    } catch (e) {
+        alert("❌ コードの復元に失敗しました。正しいコードか確認してください。");
+    }
 }
 
 function createPieceHTML(piece) {
@@ -1247,6 +1389,46 @@ function checkKingsUnderAttack() {
     return checkedPositions;
 }
 
+// 🪙 ユーザー指定の駒コスト定義
+const PIECE_COST_VALUES = {
+    FU: 1, KY: 2, KE: 3, GI: 4, KI: 5,
+    KA: 10, HI: 11,
+    UMA: 12, RYU: 13, // 👈 馬（成角）を12、龍（成飛）を13に設定
+    OU: 14,          // 👈 王は絶対保護のため一番上の14へシフト
+    SOLDIER: 5, SHOGUN: 6, BOSS: 14
+};
+
+// 🧮 指定マス (tr, tc) へ効いている指定プレイヤーの駒の「コスト合計値」を算出
+function getTileCoverCostSum(tr, tc, player) {
+    let totalCost = 0;
+    for (let er = 0; er < 9; er++) {
+        for (let ec = 0; ec < 9; ec++) {
+            let ep = boardState[er] ? boardState[er][ec] : null;
+            if (ep && ep.p === player) {
+                // その駒の攻撃範囲（利き）を取得
+                let atkTargets = calculateTargetsPure({ r: er, c: ec }, 'attack');
+                if (atkTargets.some(t => t.r === tr && t.c === tc && !t.blocked)) {
+                    // 成り駒の場合は成りのコスト、通常時は通常のコストを加算
+                    let costKey = ep.t;
+                    let cost = PIECE_COST_VALUES[costKey] || 1;
+                    
+                    // と・成香・成桂・成銀・馬・龍 の場合の加算処理
+                    if (ep.promoted) {
+                        if (ep.t === 'FU') cost = 6;      // と
+                        else if (ep.t === 'KY') cost = 7; // 成香
+                        else if (ep.t === 'KE') cost = 8; // 成桂
+                        else if (ep.t === 'GI') cost = 9; // 成銀
+                        else if (ep.t === 'KA') cost = 12; // 馬（仮）
+                        else if (ep.t === 'HI') cost = 13; // 龍（仮）
+                    }
+                    totalCost += cost;
+                }
+            }
+        }
+    }
+    return totalCost;
+}
+
 function getTileCoverCount(tr, tc, player) {
     let count = 0;
     for (let er = 0; er < 9; er++) {
@@ -1542,6 +1724,25 @@ function evaluateActionMid(from, to, type) {
         score -= 300; 
     }
 
+
+// 🎯 にらみ合いマス（地点 to）への評価判定
+    let p1CostSum = getTileCoverCostSum(to.r, to.c, 1); // 1P(プレイヤー)側の利きコスト合計
+    let p2CostSum = getTileCoverCostSum(to.r, to.c, 2); // 2P(CPU)側の利きコスト合計
+
+// 1Pの利きが存在する（危険な・にらみ合っている）マスに攻撃・移動する場合
+    if (p1CostSum > 0) {
+    // 💡 CPU側の利きコスト合計が プレイヤー側より低い（損失が少ない ＝ 駒得）
+    if (p2CostSum < p1CostSum) {
+        let costDiff = p1CostSum - p2CostSum;
+        score += 300 + (costDiff * 50); // 差が大きいほど強力に攻撃を決断！
+    } 
+
+    // ⚠️ 逆にCPU側のコストの方が高い（損をする）場合は踏み込みを躊躇（減点）
+    else if (p2CostSum > p1CostSum) {
+        score -= 400;
+    }
+}
+    
 // 🧠【追加】3手先の「最低 vs 最高」シミュレーション結果を加算！
     score += evaluate3Steps(from, to, type);
 
@@ -2511,7 +2712,8 @@ function executeAttack(actor, tr, tc, isSpecial, isHeavy = false, isSpearBypass 
 function executeRyuMegaParticleBeam(r, c, actor) {
     playSE('beam');
     let directions = [[-1,0],[1,0],[0,-1],[0,1]]; // 上・下・左・右
-    
+    let isGameOverTriggered = false; // 終了フラグ
+
     // 1. 極太レーザー演出
     directions.forEach(d => {
         let farR = Math.max(0, Math.min(8, r + d[0] * 8));
@@ -2543,6 +2745,12 @@ function executeRyuMegaParticleBeam(r, c, actor) {
                     }
 
                     if (p.hp <= 0) {
+                        // 👑【修正】玉(OU)またはボス(BOSS)を巻き込んで倒した場合はゲーム終了！
+                        if (checkGameOver(p)) {
+                            isGameOverTriggered = true;
+                            boardState[tr][tc] = null;
+                            break;
+                        }
                         let capType = (p.t === 'SOLDIER' || p.t === 'SHOGUN') ? 'KI' : p.t;
                         
                         if (p.p === actor.p) {
@@ -2926,6 +3134,22 @@ function playCPUTurn() {
         return p && p.p === activeP; // 👈 2 から activeP に変更
     });
 
+// playCPUTurn() の前半に追加
+
+// 🐉 1P(プレイヤー)側のチャージ中「龍」が存在するか探す
+let chargingRyuPos = null;
+for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+        let p = boardState[r] ? boardState[r][c] : null;
+        if (p && p.p === 1 && p.t === 'HI' && p.isCharging) {
+            chargingRyuPos = { r, c };
+            break;
+        }
+    }
+    if (chargingRyuPos) break;
+}
+
+
 // 😈 【VS大王戦：3体順番アクションシステム（分裂バグ防止＆滑らか演出版）】
     if (gameMode === 'boss') {
         let bossUnitTypes = ['SOLDIER', 'SHOGUN', 'BOSS'];
@@ -3246,6 +3470,57 @@ function playCPUTurn() {
     }
 
     if (possibleActions.length === 0) { endTurn(); return; }
+
+// 🚨 チャージ中の龍が存在する場合の緊急割り込み処理
+if (chargingRyuPos) {
+    // 【優先行動 A】その龍を今すぐ1手で撃破（拿捕・必殺技）できる手があるか？
+    let snipeActions = possibleActions.filter(act => 
+        (act.type === 'attack' || act.type === 'special') && 
+        act.to.r === chargingRyuPos.r && act.to.c === chargingRyuPos.c
+    );
+
+    if (snipeActions.length > 0) {
+        snipeActions.forEach(act => act.score += 10000); // 💥 超絶加点で100%最優先実行！
+        addLog(2, "🚨 危険検知！メガ粒子砲チャージ中の龍を撃滅しに向かいます！");
+    } 
+    else {
+        // 【優先行動 B】倒せない場合：メガビームの射線（上下左右の直線）上にいる味方（特に王や高コスト駒）を逃がす！
+        possibleActions.forEach(act => {
+            let p = boardState[act.from.r][act.from.c];
+            // 現在地が龍の上下左右（同列または同行）にあるか？
+            let isinRyuLineNow = (act.from.r === chargingRyuPos.r || act.from.c === chargingRyuPos.c);
+            // 移動先が龍の射線から外れているか？
+            let isEscapeLine = (act.to.r !== chargingRyuPos.r && act.to.c !== chargingRyuPos.c);
+
+            if (isinRyuLineNow && isEscapeLine) {
+                let cost = PIECE_COST_VALUES[p.t] || 1;
+                if (p.t === 'OU') act.score += 8000;  // 👑 王なら絶対最優先で避難！
+                else act.score += (2000 + cost * 100); // 🛡️ コストが高い駒ほど優先して射線から退避！
+            }
+        });
+        addLog(2, "⚠️ メガ粒子砲の射線を検知！危険エリアから緊急退避します！");
+    }
+}
+
+// 👑 王がメガビーム射線上にいて、かつ龍がチャージ中の場合の判定強化
+for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+        let p = boardState[r] ? boardState[r][c] : null;
+        if (p && p.p === 2 && p.t === 'OU' && chargingRyuPos) {
+            // 王と龍が同じ行（横）または同じ列（縦）にいる＝貫通爆撃エリア内！
+            if (r === chargingRyuPos.r || c === chargingRyuPos.c) {
+                // 王を射線外へ移動させる手のスコアを跳ね上げる
+                possibleActions.forEach(act => {
+                    if (act.from.r === r && act.from.c === c) {
+                        if (act.to.r !== chargingRyuPos.r && act.to.c !== chargingRyuPos.c) {
+                            act.score += 9999; // 👑 壁に関係なく絶対退避！
+                        }
+                    }
+                });
+            }
+        }
+    }
+}
 
     // 🎯 【最優先ルール0：序盤の絶対定跡・飛車先防衛（75%の確率で発動）】
     let isPlayerPawnAt25 = boardState[4] && boardState[4][7] && boardState[4][7].p === 1 && boardState[4][7].t === 'FU';
