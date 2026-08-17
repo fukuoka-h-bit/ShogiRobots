@@ -2559,7 +2559,7 @@ function renderBoard() {
                 if(piece.mountedPiece) {
                     const badge = document.createElement('div');
                     badge.className = 'mount-badge';
-                    badge.innerText = `[${PIECE_TYPES[piece.mountedPiece].name}:${piece.dockTimer || 5}]`;
+                    badge.innerText = `[⏳${piece.dockTimer || 5}]`;
                     pEl.appendChild(badge);
                 }
                 const hpEl = document.createElement('div');
