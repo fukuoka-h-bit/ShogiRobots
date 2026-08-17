@@ -335,6 +335,107 @@
 /* 🟡【NEW】OFFの時はHPバーをまるごと消す */
 body.hide-hp .hp-bar { display: none !important; }
 
+/* 🎮 難易度トグルボタンの見た目 */
+.level-toggle-btn {
+    padding: 10px;
+    font-size: 12px;
+    background: #2a2a3a;
+    color: #aaa;
+    border: 1px solid #555;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+}
+.level-toggle-btn:hover {
+    background: #3a3a4a;
+}
+/* 選ばれている（アクティブ）トグルボタンの光る演出 */
+.level-toggle-btn.active-lvl {
+    background: #005577 !important;
+    color: #00ffff !important;
+    border: 2px solid #00ffff !important;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.6);
+    font-weight: bold;
+}
+
+/* 🧰 持ち駒欄の「アイテムボタン」 */
+.item-modal-btn {
+    flex: none;
+    width: 80px;
+    background: linear-gradient(135deg, #00ffcc, #0088ff);
+    color: #000;
+    border: 1px solid #00ffff;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 11px;
+    font-weight: 900;
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
+    white-space: nowrap;
+}
+.item-modal-btn:hover {
+    filter: brightness(1.2);
+    transform: scale(1.05);
+}
+
+/* 🥽 スカウターゴーグル展開中の「常時マス色変化」演出 */
+body.show-scouter .cell {
+    border-color: #0088aa !important;
+}
+
+/* 🥽 スカウターゴーグル（利き＆コスト可視化バッジ） */
+.cover-badge {
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font-size: 7px;
+    font-weight: 900;
+    font-family: monospace;
+    z-index: 40;
+    pointer-events: none;
+    line-height: 1;
+}
+
+.cover-badge .p1-cover {
+    background: rgba(0, 80, 200, 0.9); 
+    color: #00ffff; 
+    border: 1px solid #00ffff; 
+    border-radius: 2px; 
+    padding: 1px 2px; 
+}
+
+.cover-badge .p2-cover {
+    background: rgba(200, 80, 0, 0.9); 
+    color: #ffff00; 
+    border: 1px solid #ffff00; 
+    border-radius: 2px; 
+    padding: 1px 2px; 
+}
+
+body:not(.show-scouter) .cover-badge {
+    display: none !important;
+}
+
+/* 🛍️ アイテムカードのスタイル */
+.item-card {
+    background: #222232;
+    border: 1px solid #00ffff;
+    border-radius: 6px;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    text-align: left;
+}
+.item-card-info { flex: 1; }
+.item-card-title { font-size: 12px; font-weight: bold; color: #00ffff; margin-bottom: 2px; }
+.item-card-desc { font-size: 9px; color: #aaa; line-height: 1.2; }
+
 </style>
 </head>
 <body>
@@ -350,7 +451,7 @@ body.hide-hp .hp-bar { display: none !important; }
     </div>
 
     <div class="hex-grid-container">
-        <div class="hex-btn" onclick="startDummyGame('pve')">
+        <div class="hex-btn" onclick="openCpuLevelModal()">
             <div class="hex-inner">
                 <span class="hex-title">CPU対戦</span>
             </div>
@@ -416,6 +517,7 @@ body.hide-hp .hp-bar { display: none !important; }
     <div class="captured-container" id="cap-box-1">
         <div class="captured-label" id="cap-label-1">先手持ち駒</div>
         <div class="captured-list" id="cap-list-1"></div>
+        <button class="item-modal-btn" onclick="openItemModal()">🧰 アイテム</button>
     </div>
 
     <div id="bottom-panel">
@@ -526,6 +628,35 @@ function backToTitle() {
         const titleEl = document.getElementById('title-screen');
         if (titleEl) titleEl.style.display = 'flex';
     }
+}
+
+// 🧠 グローバル変数にCPUレベルを追加（デフォルト: normal）
+let cpuLevel = 'normal'; 
+
+// モーダルを開く/閉じる
+function openCpuLevelModal() {
+    playSE('select');
+    document.getElementById('cpu-level-modal').style.display = 'flex';
+}
+function closeCpuLevelModal() {
+    playSE('select');
+    document.getElementById('cpu-level-modal').style.display = 'none';
+}
+
+// トグルボタン選択（見た目の切り替え）
+function selectCpuLevel(lvl) {
+    playSE('select');
+    cpuLevel = lvl;
+    ['easy', 'normal', 'hard'].forEach(l => {
+        let btn = document.getElementById(`lvl-btn-${l}`);
+        if (btn) btn.classList.toggle('active-lvl', l === lvl);
+    });
+}
+
+// 出撃開始ボタンを押した時
+function startSelectedCpuGame() {
+    closeCpuLevelModal();
+    startDummyGame('pve'); // ゲーム画面へ遷移
 }
 
 // --- 定数定義 ---
@@ -749,7 +880,7 @@ function preloadImages() {
         let img2 = new Image(); img2.src = `image/${data.prom}`;
     });
     // 🐎 合体用画像の事前ロード
-    ['fuMa.png', 'kyoMa.jpg', 'kinMa.jpg', 'uMa.jpg', 'RyuMa.jpg'].forEach(file => {
+    ['fuMa.png', 'kyoMa.png', 'kinMa.png', 'uMa.png', 'RyuMa.png'].forEach(file => {
         let img = new Image(); img.src = `image/${file}`;
     });
 }
@@ -833,6 +964,19 @@ function applyBrainCode() {
     } catch (e) {
         alert("❌ コードの復元に失敗しました。正しいコードか確認してください。");
     }
+}
+
+// 🥽 スカウターゴーグルのON/OFF切り替え
+function toggleScouter() {
+    document.body.classList.toggle('show-scouter');
+    const btn = document.getElementById('btn-scouter');
+    const isShowing = document.body.classList.contains('show-scouter');
+    if (btn) {
+        btn.innerText = isShowing ? "🥽 利き: ON" : "🥽 利き: OFF";
+        btn.classList.toggle('muted', !isShowing);
+    }
+    playSE('select');
+    renderBoard(); // 再描画してバッジを更新
 }
 
 function createPieceHTML(piece) {
@@ -1362,14 +1506,158 @@ function calculateTargetsPure(origin, mode) {
 
 function calculateTargets(origin, mode) { targets = calculateTargetsPure(origin, mode); }
 
+
+// 🥽【スカウター専用】射線方向と盾駒の攻撃方向が一致する場合のみ1マス貫通する関数
+function getRawAttackSquares(r, c) {
+    const p = boardState[r] ? boardState[r][c] : null;
+    if (!p) return [];
+
+    let squares = [];
+    let dir = p.p === 1 ? -1 : 1;
+    let vectors = [];
+    let isRanged = false;
+
+    // --- ボス（大王）の判定 ---
+    if (p.t === 'BOSS') {
+        vectors = [[-1,0],[1,0],[0,-1],[0,1]];
+        vectors.forEach(v => {
+            for (let step = 1; step <= 2; step++) {
+                let tr = r + v[0] * step, tc = c + v[1] * step;
+                if (tr >= 0 && tr < 9 && tc >= 0 && tc < 9) {
+                    squares.push({ r: tr, c: tc });
+                    if (boardState[tr][tc]) break;
+                }
+            }
+        });
+        return squares;
+    }
+
+    // --- 通常移動ベクトルの設定 ---
+    if (p.promoted && p.t !== 'HI' && p.t !== 'KA' && p.t !== 'KI' && p.t !== 'SOLDIER' && p.t !== 'SHOGUN') {
+        vectors = [[dir, -1], [dir, 0], [dir, 1], [0, -1], [0, 1], [-dir, 0]];
+    } else {
+        if (p.t === 'FU') vectors = [[dir, 0]];
+        if (p.t === 'KY') { vectors = [[dir, 0]]; isRanged = true; }
+        if (p.t === 'KE') vectors = [[dir * 2, -1], [dir * 2, 1]];
+        if (p.t === 'GI') vectors = [[dir, -1], [dir, 0], [dir, 1], [-dir, -1], [-dir, 1]];
+        if (p.t === 'KI' || p.t === 'SOLDIER' || p.t === 'SHOGUN') vectors = [[dir, -1], [dir, 0], [dir, 1], [0, -1], [0, 1], [-dir, 0]];
+        if (p.t === 'OU') vectors = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+        if (p.t === 'HI') { vectors = [[-1,0],[1,0],[0,-1],[0,1]]; isRanged = true; }
+        if (p.t === 'KA') { vectors = [[-1,-1],[-1,1],[1,-1],[1,1]]; isRanged = true; }
+    }
+
+    // 長距離貫通許可フラグ（飛・角・香・馬・龍 ＆ 馬飛車合体）
+    let canPenetrateFriend = (p.t === 'HI' || p.t === 'KA' || p.t === 'KY');
+
+    // 🎯 補助関数：盾となる味方駒が、射線の進行方向(vr, vc)に攻撃範囲を持っているかチェック
+    const friendCanAttackDirection = (friendPiece, fr, fc, vr, vc) => {
+        let fDir = friendPiece.p === 1 ? -1 : 1;
+        let fVectors = [];
+
+        if (friendPiece.promoted && friendPiece.t !== 'HI' && friendPiece.t !== 'KA' && friendPiece.t !== 'KI' && friendPiece.t !== 'SOLDIER' && friendPiece.t !== 'SHOGUN') {
+            fVectors = [[fDir, -1], [fDir, 0], [fDir, 1], [0, -1], [0, 1], [-fDir, 0]];
+        } else {
+            if (friendPiece.t === 'FU') fVectors = [[fDir, 0]];
+            if (friendPiece.t === 'KY') fVectors = [[fDir, 0]];
+            if (friendPiece.t === 'KE') fVectors = [[fDir * 2, -1], [fDir * 2, 1]];
+            if (friendPiece.t === 'GI') fVectors = [[fDir, -1], [fDir, 0], [fDir, 1], [-fDir, -1], [-fDir, 1]];
+            if (friendPiece.t === 'KI' || friendPiece.t === 'SOLDIER' || friendPiece.t === 'SHOGUN') fVectors = [[fDir, -1], [fDir, 0], [fDir, 1], [0, -1], [0, 1], [-fDir, 0]];
+            if (friendPiece.t === 'OU') fVectors = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+            if (friendPiece.t === 'HI') fVectors = [[-1,0],[1,0],[0,-1],[0,1]];
+            if (friendPiece.t === 'KA') fVectors = [[-1,-1],[-1,1],[1,-1],[1,1]];
+        }
+
+        if (friendPiece.promoted || (friendPiece.t === 'KA' && friendPiece.mountedPiece)) {
+            if (friendPiece.t === 'HI' && friendPiece.promoted) fVectors.push([-1,-1],[-1,1],[1,-1],[1,1]);
+            if (friendPiece.t === 'KA' && friendPiece.promoted) fVectors.push([-1,0],[1,0],[0,-1],[0,1]);
+        }
+
+        // 射線の単位方向(vr, vc)と一致する攻撃ベクトルを持っているか？
+        return fVectors.some(fv => fv[0] === vr && fv[1] === vc);
+    };
+
+    // --- メイン射線のビーム／移動判定 ---
+    vectors.forEach(v => {
+        let step = 1;
+        while (true) {
+            let tr = r + v[0] * step, tc = c + v[1] * step;
+            if (tr < 0 || tr >= 9 || tc < 0 || tc >= 9) break;
+
+            squares.push({ r: tr, c: tc });
+
+            let targetPiece = boardState[tr][tc];
+            if (targetPiece) {
+                // 敵駒に当たった場合はそこで終了
+                if (targetPiece.p !== p.p) break;
+
+                // 🛡️ 味方駒に当たった場合：
+                // 長距離駒であり、かつ『味方駒の攻撃方向も射線方向と一致している場合』のみ1マス貫通！
+                if (canPenetrateFriend && friendCanAttackDirection(targetPiece, tr, tc, v[0], v[1])) {
+                    let nextR = tr + v[0];
+                    let nextC = tc + v[1];
+                    if (nextR >= 0 && nextR < 9 && nextC >= 0 && nextC < 9) {
+                        squares.push({ r: nextR, c: nextC });
+                    }
+                }
+                break; // 味方に当たったので射線はここで止める
+            }
+
+            if (!isRanged) break;
+            step++;
+        }
+    });
+
+    // --- 成り駒・合体駒のサブ移動ベクトル ---
+    if (p.promoted || (p.t === 'KA' && p.mountedPiece)) {
+        let extraVectors = [];
+        if (p.t === 'HI' && p.promoted) extraVectors = [[-1,-1],[-1,1],[1,-1],[1,1]];
+        if (p.t === 'KA' && p.promoted && p.mountedPiece !== 'HI') extraVectors = [[-1,0],[1,0],[0,-1],[0,1]];
+
+        if (p.t === 'KA' && p.mountedPiece === 'HI') {
+            const hiVectors = [[-1,0],[1,0],[0,-1],[0,1]];
+            hiVectors.forEach(v => {
+                let step = 1;
+                while (true) {
+                    let tr = r + v[0] * step, tc = c + v[1] * step;
+                    if (tr < 0 || tr >= 9 || tc < 0 || tc >= 9) break;
+                    
+                    squares.push({ r: tr, c: tc });
+                    
+                    let targetPiece = boardState[tr][tc];
+                    if (targetPiece) {
+                        if (targetPiece.p === p.p && canPenetrateFriend && friendCanAttackDirection(targetPiece, tr, tc, v[0], v[1])) {
+                            let nextR = tr + v[0];
+                            let nextC = tc + v[1];
+                            if (nextR >= 0 && nextR < 9 && nextC >= 0 && nextC < 9) {
+                                squares.push({ r: nextR, c: nextC });
+                            }
+                        }
+                        break;
+                    }
+                    step++;
+                }
+            });
+        }
+
+        extraVectors.forEach(v => {
+            let tr = r + v[0], tc = c + v[1];
+            if (tr >= 0 && tr < 9 && tc >= 0 && tc < 9) {
+                squares.push({ r: tr, c: tc });
+            }
+        });
+    }
+
+    return squares;
+}
+
 function isTileAttackedByEnemy(tr, tc, targetPlayer) {
     let enemyPlayer = targetPlayer === 1 ? 2 : 1;
     for (let er = 0; er < 9; er++) {
         for (let ec = 0; ec < 9; ec++) {
             let ep = boardState[er] ? boardState[er][ec] : null;
             if (ep && ep.p === enemyPlayer) {
-                let enemyTargets = calculateTargetsPure({ r: er, c: ec }, 'attack');
-                if (enemyTargets.some(t => t.r === tr && t.c === tc && !t.blocked)) return true;
+                let enemyAtks = getRawAttackSquares(er, ec); // 👈 修正
+                if (enemyAtks.some(t => t.r === tr && t.c === tc)) return true;
             }
         }
     }
@@ -1405,21 +1693,17 @@ function getTileCoverCostSum(tr, tc, player) {
         for (let ec = 0; ec < 9; ec++) {
             let ep = boardState[er] ? boardState[er][ec] : null;
             if (ep && ep.p === player) {
-                // その駒の攻撃範囲（利き）を取得
-                let atkTargets = calculateTargetsPure({ r: er, c: ec }, 'attack');
-                if (atkTargets.some(t => t.r === tr && t.c === tc && !t.blocked)) {
-                    // 成り駒の場合は成りのコスト、通常時は通常のコストを加算
+                let atkTargets = getRawAttackSquares(er, ec); // 👈 修正
+                if (atkTargets.some(t => t.r === tr && t.c === tc)) {
                     let costKey = ep.t;
                     let cost = PIECE_COST_VALUES[costKey] || 1;
-                    
-                    // と・成香・成桂・成銀・馬・龍 の場合の加算処理
                     if (ep.promoted) {
-                        if (ep.t === 'FU') cost = 6;      // と
-                        else if (ep.t === 'KY') cost = 7; // 成香
-                        else if (ep.t === 'KE') cost = 8; // 成桂
-                        else if (ep.t === 'GI') cost = 9; // 成銀
-                        else if (ep.t === 'KA') cost = 12; // 馬（仮）
-                        else if (ep.t === 'HI') cost = 13; // 龍（仮）
+                        if (ep.t === 'FU') cost = 6;
+                        else if (ep.t === 'KY') cost = 7;
+                        else if (ep.t === 'KE') cost = 8;
+                        else if (ep.t === 'GI') cost = 9;
+                        else if (ep.t === 'KA') cost = 12;
+                        else if (ep.t === 'HI') cost = 13;
                     }
                     totalCost += cost;
                 }
@@ -1435,7 +1719,7 @@ function getTileCoverCount(tr, tc, player) {
         for (let ec = 0; ec < 9; ec++) {
             let ep = boardState[er] ? boardState[er][ec] : null;
             if (ep && ep.p === player) {
-                let atkTargets = calculateTargetsPure({ r: er, c: ec }, 'attack');
+                let atkTargets = getRawAttackSquares(er, ec); // 👈 修正
                 if (atkTargets.some(t => t.r === tr && t.c === tc)) count++;
             }
         }
@@ -1459,7 +1743,7 @@ function getPenetratingCoverCount(tr, tc, player) {
                 if (isRangedLine) {
                     count++;
                 } else {
-                    let atkTargets = calculateTargetsPure({ r: er, c: ec }, 'attack');
+                    let atkTargets = getRawAttackSquares(er, ec); // 👈 修正
                     if (atkTargets.some(t => t.r === tr && t.c === tc)) count++;
                 }
             }
@@ -1634,12 +1918,35 @@ function evaluateActionMid(from, to, type) {
             score += (targetPiece.hp <= 1) ? Math.floor(targetValue * 2.0) : Math.floor(targetValue * 1.2);
             
             if (targetPiece.t === 'FU') score += 200;
-            if (targetPiece.t === 'OU' || targetPiece.t === 'BOSS') score += 5000;
+            if (targetPiece.t === 'OU' || targetPiece.t === 'BOSS') score += 50000;
+            // =========================================================
+            // 🟢【追加 1】HPと反撃リスクを考慮した攻撃判断
+            // =========================================================
+            let actorHp = actor.hp || 1;
+            let targetHp = targetPiece.hp || 1;
+            let p1CostSumAtTarget = getTileCoverCostSum(to.r, to.c, 1); // 移動先の敵の利き
+
+            if (targetHp <= 1) {
+                // 💥 1手で倒し切れる（反撃を受けない）ならボーナス！
+                score += 300;
+            } else {
+                // ⚠️ 1手で倒せない（HP2以上）で、かつ移動先が危険な場合
+                if (p1CostSumAtTarget > 0) {
+                    if (actorHp <= 1) {
+                        // 自分のHPが1だと次のターン反撃で即死するため大減点（特攻防止）
+                        score -= 500;
+                    } else {
+                        // 自分のHPが2あれば1発耐えられるので軽めの減点
+                        score -= 150;
+                    }
+                }
+            }
+            // =========================================================
         }
     }
 
     if (type === 'move' || type === 'attack') {
-// 🎯 1Pの時は配列の上下（8 - to.r）を逆にして参照！
+    // 🎯 1Pの時は配列の上下（8 - to.r）を逆にして参照！
         let pstoRow = actor.p === 1 ? (8 - to.r) : to.r;
         score += PSTO_MID[pstoRow][to.c] * 2;
 
@@ -1676,6 +1983,11 @@ function evaluateActionMid(from, to, type) {
             // 1Pは上（rが小さい）ほど前進、2Pは下（rが大きい）ほど前進！
             let advanceScore = actor.p === 1 ? (8 - to.r) : to.r;
             score += advanceScore * 10; 
+
+            // 敵陣3段目以内に入ったら大ボーナス
+            if ((actor.p === 1 && to.r <= 2) || (actor.p === 2 && to.r >= 6)) {
+            score += 100;
+            }
         }
 
         let currentlyThreatened = isEnemyThreatening(from.r, from.c);
@@ -1684,6 +1996,17 @@ function evaluateActionMid(from, to, type) {
 
         if (currentlyThreatened) {
             if (!futureThreatened) score += 300 + (priorityWeight * 0.5); 
+
+                // =========================================================
+                // 🟢【追加 2】HP1の重要駒を最優先で逃がす判定
+                // =========================================================
+                let actorCost = PIECE_COST_VALUES[actor.t] || 1;
+                if (actor.hp === 1 && actorCost >= 4) {
+                    // 🚨 HPが1（瀕死）の金・銀・大駒はプライドを捨てて最優先退避！
+                    score += 500;
+                }
+                // =========================================================
+            
             else if (to.r < from.r && coverCount >= 1) score += 150 + (priorityWeight * 0.2); 
         }
 
@@ -1694,14 +2017,14 @@ function evaluateActionMid(from, to, type) {
         if (!actor.promoted && isEnemyZone) score += 100;
     }
 
-// 🟡【NEW】1P/2Pに応じて参照するBrainデータを自動切替！
+    // 🟡【NEW】1P/2Pに応じて参照するBrainデータを自動切替！
     let activeBrain = cpuBrainData;
     if (gameMode === 'cvc') {
         if (actor.p === 1 && cvcBrain1P) activeBrain = cvcBrain1P;
         if (actor.p === 2 && cvcBrain2P) activeBrain = cvcBrain2P;
     }
 
-// 👎 過去の反省記憶（減点）
+    // 👎 過去の反省記憶（減点）
     if (activeBrain && activeBrain.badPositions) {
         activeBrain.badPositions.forEach(bad => {
             if (bad.pieceType === actor.t && bad.r === to.r && bad.c === to.c) {
@@ -1710,7 +2033,7 @@ function evaluateActionMid(from, to, type) {
         });
     }
 
-// 🧠 過去の成功記憶（加点）をスコアに反映！
+    // 🧠 過去の成功記憶（加点）をスコアに反映！
     if (activeBrain && activeBrain.goodPatterns) {
         activeBrain.goodPatterns.forEach(good => {
             if (good.pieceType === actor.t && good.r === to.r && good.c === to.c) {
@@ -1725,11 +2048,11 @@ function evaluateActionMid(from, to, type) {
     }
 
 
-// 🎯 にらみ合いマス（地点 to）への評価判定
+    // 🎯 にらみ合いマス（地点 to）への評価判定
     let p1CostSum = getTileCoverCostSum(to.r, to.c, 1); // 1P(プレイヤー)側の利きコスト合計
     let p2CostSum = getTileCoverCostSum(to.r, to.c, 2); // 2P(CPU)側の利きコスト合計
 
-// 1Pの利きが存在する（危険な・にらみ合っている）マスに攻撃・移動する場合
+    // 1Pの利きが存在する（危険な・にらみ合っている）マスに攻撃・移動する場合
     if (p1CostSum > 0) {
     // 💡 CPU側の利きコスト合計が プレイヤー側より低い（損失が少ない ＝ 駒得）
     if (p2CostSum < p1CostSum) {
@@ -1741,12 +2064,112 @@ function evaluateActionMid(from, to, type) {
     else if (p2CostSum > p1CostSum) {
         score -= 400;
     }
-}
+    }
     
-// 🧠【追加】3手先の「最低 vs 最高」シミュレーション結果を加算！
+    // 🧠【追加】3手先の「最低 vs 最高」シミュレーション結果を加算！
     score += evaluate3Steps(from, to, type);
 
-    score += Math.random() * 5;
+    if (cpuLevel === 'easy') {
+    score += (Math.random() * 200 - 100); // 🎲 初級：評価が大幅にブレてたまにドジを踏む
+    } else if (cpuLevel === 'hard') {
+    // 🔥 上級：評価値をさらに尖らせて厳密化
+    if (type === 'attack') score *= 1.2;
+    }
+
+
+// ============================================================
+// 🏰【中級・上級専用】囲い接近ボーナス（1P/2P安全判定版） ＋ 王の安全度評価
+// ============================================================
+if (cpuLevel === 'normal' || cpuLevel === 'hard') {
+
+    // ① 囲い接近ボーナス（1P / 2P 安全取得）
+    let myCastleTarget = null;
+    if (actor.p === 1 && typeof window.currentTargetCastle1P !== 'undefined') {
+        myCastleTarget = window.currentTargetCastle1P;
+    } else if (actor.p === 2 && typeof currentTargetCastle !== 'undefined') {
+        myCastleTarget = currentTargetCastle;
+    }
+
+    if (myCastleTarget && myCastleTarget.targets) {
+        let target = myCastleTarget.targets.find(t => t.piece === actor.t);
+        if (target) {
+            let currentDist = Math.abs(from.r - target.pos.r) + Math.abs(from.c - target.pos.c);
+            let newDist = Math.abs(to.r - target.pos.r) + Math.abs(to.c - target.pos.c);
+            if (newDist < currentDist) {
+                let distGain = (currentDist - newDist) * 40;
+                score += Math.min(distGain, 200);
+                
+                if (cpuLevel === 'hard') {
+                    score += 100;
+                }
+            }
+        }
+    }
+
+    // ---------- ② 玉（王）の安全度評価 ----------
+    // 自分の玉の周りに味方の駒がいるほど加点（中級・上級共通）
+    let kingPos = null;
+    for (let kr = 0; kr < 9; kr++) {
+        for (let kc = 0; kc < 9; kc++) {
+            let kp = boardState[kr] ? boardState[kr][kc] : null;
+            if (kp && kp.p === actor.p && (kp.t === 'OU' || kp.t === 'BOSS')) {
+                kingPos = { r: kr, c: kc };
+                break;
+            }
+        }
+        if (kingPos) break;
+    }
+
+    if (kingPos) {
+        // 玉の周囲8マスをチェック
+        let safetyBonus = 0;
+        let shieldCount = 0;
+        const vectors = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+        
+        vectors.forEach(v => {
+            let tr = kingPos.r + v[0];
+            let tc = kingPos.c + v[1];
+            if (tr >= 0 && tr < 9 && tc >= 0 && tc < 9) {
+                let neighbor = boardState[tr] ? boardState[tr][tc] : null;
+                if (neighbor && neighbor.p === actor.p) {
+                    // 味方の駒が玉の周りにいる → 安全！
+                    safetyBonus += 30;
+                    shieldCount++;
+                    
+                    // 金・銀・玉は特に安全度が高い
+                    if (neighbor.t === 'KI' || neighbor.t === 'GI' || neighbor.t === 'OU') {
+                        safetyBonus += 20;
+                    }
+                }
+            }
+        });
+
+        // 周囲8マスが味方で埋まっているほど安全（最大400点程度）
+        score += Math.min(safetyBonus, 400);
+        
+        // 🔥 上級専用：玉の周囲がガラ空きなら減点（危険と判断）
+        if (cpuLevel === 'hard') {
+            let emptyAroundKing = 0;
+            vectors.forEach(v => {
+                let tr = kingPos.r + v[0];
+                let tc = kingPos.c + v[1];
+                if (tr >= 0 && tr < 9 && tc >= 0 && tc < 9) {
+                    if (!boardState[tr][tc]) emptyAroundKing++;
+                }
+            });
+            // 玉の周囲が3マス以上空いていると危険！
+            if (emptyAroundKing >= 3) {
+                score -= 150;
+            }
+            // 極端に空いてる（5マス以上）はもっと減点
+            if (emptyAroundKing >= 5) {
+                score -= 200;
+            }
+        }
+    }
+}
+// ============================================================
+
     return score;
 }
 
@@ -1777,6 +2200,7 @@ function renderBoard() {
 
             const piece = boardState[r] ? boardState[r][c] : null;
             cell.className = 'cell';
+            cell.style.backgroundColor = ''; // 👈 毎回この1行でマスの色を「無色」にリセット！
 
             let hasItem = itemState.some(it => it.r === r && it.c === c);
             if (hasItem) cell.classList.add('item-pill');
@@ -1818,11 +2242,75 @@ function renderBoard() {
                 cell.appendChild(pEl);
                 cell.appendChild(hpEl);
             }
+// 🥽【スカウターゴーグル】利きマスの可視化描画
+            if (document.body.classList.contains('show-scouter')) {
+                let p1Count = getTileCoverCount(r, c, 1);
+                let p1Cost = getTileCoverCostSum(r, c, 1);
+                let p2Count = getTileCoverCount(r, c, 2);
+                let p2Cost = getTileCoverCostSum(r, c, 2);
+
+                // 🎨 利き枚数に応じてマスの背景色を直接塗る
+                if (p1Count > 0 && p2Count === 0) {
+                    let alpha = Math.min(0.18 + p1Count * 0.15, 0.65);
+                    cell.style.backgroundColor = `rgba(255, 50, 50, ${alpha})`;
+                } else if (p2Count > 0 && p1Count === 0) {
+                    let alpha = Math.min(0.18 + p2Count * 0.15, 0.65);
+                    cell.style.backgroundColor = `rgba(180, 50, 255, ${alpha})`;
+                } else if (p1Count > 0 && p2Count > 0) {
+                    cell.style.backgroundColor = `rgba(220, 50, 150, 0.55)`;
+                }
+
+    // 数字バッジ表示
+                if (p1Count > 0 || p2Count > 0) {
+                    const badge = document.createElement('div');
+                    badge.className = 'cover-badge';
+                    
+                    let badgeHTML = '';
+                    if (p1Count > 0) badgeHTML += `<span class="p1-cover">${p1Count}(${p1Cost})</span>`;
+                    if (p2Count > 0) badgeHTML += `<span class="p2-cover">${p2Count}(${p2Cost})</span>`;
+                    badge.innerHTML = badgeHTML;
+                    cell.appendChild(badge);
+    }
+}
         }
     }
     renderCaptured();
     updateBossHpBar();
     updateAiUi();
+}
+
+// renderBoard() 内のセル描画ループ（for r, for c）内
+if (document.body.classList.contains('show-scouter')) {
+    let p1Count = getTileCoverCount(r, c, 1);
+    let p1Cost = getTileCoverCostSum(r, c, 1);
+    let p2Count = getTileCoverCount(r, c, 2);
+    let p2Cost = getTileCoverCostSum(r, c, 2);
+
+    // 🎨 マス目の背景色を利きの枚数に応じて直接塗り分ける
+    if (p1Count > 0 && p2Count === 0) {
+        // --- 1P側の利き（赤系）：1枚で0.25、枚数が増えると濃くなる（上限0.65） ---
+        let alpha = Math.min(0.15 + p1Count * 0.15, 0.65);
+        cell.style.backgroundColor = `rgba(255, 50, 50, ${alpha})`;
+    } else if (p2Count > 0 && p1Count === 0) {
+        // --- 2P側の利き（紫系）：1枚で0.25、枚数が増えると濃くなる（上限0.65） ---
+        let alpha = Math.min(0.15 + p2Count * 0.15, 0.65);
+        cell.style.backgroundColor = `rgba(180, 50, 255, ${alpha})`;
+    } else if (p1Count > 0 && p2Count > 0) {
+        // --- 両方の利きが重なっているマス（混色） ---
+        cell.style.backgroundColor = `rgba(220, 50, 150, 0.5)`;
+    }
+
+    // 数字バッジの表示処理
+    if (p1Count > 0 || p2Count > 0) {
+        const badge = document.createElement('div');
+        badge.className = 'cover-badge';
+        
+        let badgeHTML = '';
+        if (p1Count > 0) badgeHTML += `<span class="p1-cover">:${p1Count}枚(${p1Cost}C)</span>`;
+        if (p2Count > 0) badgeHTML += `<span class="p2-cover">:${p2Count}枚(${p2Cost}C)</span>`;
+        badge.innerHTML = badgeHTML;
+        cell.appendChild(badge);
+    }
 }
 
 function initGame() {
@@ -2352,6 +2840,53 @@ function checkPickupItem(r, c, piece) {
         if (piece.p === 2) {
             learnSuccessPattern(piece.t, r, c, 250, "get_item");
         }
+    }
+}
+
+// 🛍️ アイテムモーダル制御
+function openItemModal() {
+    playSE('select');
+    let modal = document.getElementById('item-shop-modal');
+    if (modal) modal.style.display = 'flex';
+}
+
+function closeItemModal() {
+    playSE('select');
+    let modal = document.getElementById('item-shop-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+// 🥽 アイテム「スカウター・ゴーグル」使用（トグル切り替え）
+function useItemGoggles() {
+    document.body.classList.toggle('show-scouter');
+    let isShowing = document.body.classList.contains('show-scouter');
+    playSE('special');
+    
+    let infoEl = document.getElementById('info-panel');
+    if (infoEl) infoEl.innerText = isShowing ? "🥽 スカウターゴーグル起動！利きとコストを透過中..." : "🥽 スカウターOFF";
+    
+    closeItemModal();
+    renderBoard();
+}
+
+// 🎯 renderBoard() 関数内（セル描画の for r, for c ループ最下部）へ追加
+// ※ cell.appendChild(hpEl); の直後などに配置してください
+
+if (document.body.classList.contains('show-scouter')) {
+    let p1Count = getTileCoverCount(r, c, 1);
+    let p1Cost = getTileCoverCostSum(r, c, 1);
+    let p2Count = getTileCoverCount(r, c, 2);
+    let p2Cost = getTileCoverCostSum(r, c, 2);
+
+    if (p1Count > 0 || p2Count > 0) {
+        const badge = document.createElement('div');
+        badge.className = 'cover-badge';
+        
+        let badgeHTML = '';
+        if (p1Count > 0) badgeHTML += `<span class="p1-cover">${p1Count}(${p1Cost})</span>`;
+        if (p2Count > 0) badgeHTML += `<span class="p2-cover">${p2Count}(${p2Cost})</span>`;
+        badge.innerHTML = badgeHTML;
+        cell.appendChild(badge);
     }
 }
 
@@ -3122,6 +3657,16 @@ function endTurn() {
 
 // --- CPU AI（思考＆戦術選定システム） ---
 function playCPUTurn() {
+
+    // 🏰 CPUの囲いを選択（2P用 ＆ 1P用）
+    if (typeof selectCastleForCurrentGame === 'function') {
+        selectCastleForCurrentGame();
+    }
+    // 🟡【追加】1P側の囲い未選択かつCvCなら1P用囲いも選ぶ！
+    if (gameMode === 'cvc' && typeof selectCastleFor1P === 'function') {
+        selectCastleFor1P();
+    }
+
     let possibleActions = [];
 // 🟡【NEW】現在ターンのプレイヤー（1Pか2Pか）を取得！
     let activeP = (gameMode === 'cvc') ? turn : 2;
@@ -3134,14 +3679,13 @@ function playCPUTurn() {
         return p && p.p === activeP; // 👈 2 から activeP に変更
     });
 
-// playCPUTurn() の前半に追加
 
-// 🐉 1P(プレイヤー)側のチャージ中「龍」が存在するか探す
+// 🐉 相手（enemyP）側のチャージ中「龍」が存在するか探す
 let chargingRyuPos = null;
 for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
         let p = boardState[r] ? boardState[r][c] : null;
-        if (p && p.p === 1 && p.t === 'HI' && p.isCharging) {
+        if (p && p.p === enemyP && p.t === 'HI' && p.isCharging) { 
             chargingRyuPos = { r, c };
             break;
         }
@@ -3152,6 +3696,8 @@ for (let r = 0; r < 9; r++) {
 
 // 😈 【VS大王戦：3体順番アクションシステム（分裂バグ防止＆滑らか演出版）】
     if (gameMode === 'boss') {
+        if (turn !== 2) return;
+
         let bossUnitTypes = ['SOLDIER', 'SHOGUN', 'BOSS'];
         
         (async () => {
@@ -3473,50 +4019,51 @@ for (let r = 0; r < 9; r++) {
 
 // 🚨 チャージ中の龍が存在する場合の緊急割り込み処理
 if (chargingRyuPos) {
-    // 【優先行動 A】その龍を今すぐ1手で撃破（拿捕・必殺技）できる手があるか？
     let snipeActions = possibleActions.filter(act => 
-        (act.type === 'attack' || act.type === 'special') && 
+        act.to && (act.type === 'attack' || act.type === 'special') && 
         act.to.r === chargingRyuPos.r && act.to.c === chargingRyuPos.c
     );
 
     if (snipeActions.length > 0) {
-        snipeActions.forEach(act => act.score += 10000); // 💥 超絶加点で100%最優先実行！
-        addLog(2, "🚨 危険検知！メガ粒子砲チャージ中の龍を撃滅しに向かいます！");
+        snipeActions.forEach(act => act.score += 10000);
+        addLog(activeP, "🚨 危険検知！メガ粒子砲チャージ中の龍を撃滅しに向かいます！");
     } 
     else {
-        // 【優先行動 B】倒せない場合：メガビームの射線（上下左右の直線）上にいる味方（特に王や高コスト駒）を逃がす！
+        let escapeExecuted = false;
         possibleActions.forEach(act => {
-            let p = boardState[act.from.r][act.from.c];
-            // 現在地が龍の上下左右（同列または同行）にあるか？
-            let isinRyuLineNow = (act.from.r === chargingRyuPos.r || act.from.c === chargingRyuPos.c);
-            // 移動先が龍の射線から外れているか？
-            let isEscapeLine = (act.to.r !== chargingRyuPos.r && act.to.c !== chargingRyuPos.c);
+            if (act.from && act.to) {
+                let p = boardState[act.from.r] ? boardState[act.from.r][act.from.c] : null;
+                if (p) {
+                    let isinRyuLineNow = (act.from.r === chargingRyuPos.r || act.from.c === chargingRyuPos.c);
+                    let isEscapeLine = (act.to.r !== chargingRyuPos.r && act.to.c !== chargingRyuPos.c);
 
-            if (isinRyuLineNow && isEscapeLine) {
-                let cost = PIECE_COST_VALUES[p.t] || 1;
-                if (p.t === 'OU') act.score += 8000;  // 👑 王なら絶対最優先で避難！
-                else act.score += (2000 + cost * 100); // 🛡️ コストが高い駒ほど優先して射線から退避！
+                    if (isinRyuLineNow && isEscapeLine) {
+                        let cost = (typeof PIECE_COST_VALUES !== 'undefined' && PIECE_COST_VALUES[p.t]) ? PIECE_COST_VALUES[p.t] : 1;
+                        if (p.t === 'OU' || p.t === 'BOSS') act.score += 8000;
+                        else act.score += (2000 + cost * 100);
+                        escapeExecuted = true;
+                    }
+                }
             }
         });
-        addLog(2, "⚠️ メガ粒子砲の射線を検知！危険エリアから緊急退避します！");
+        if (escapeExecuted) {
+            addLog(activeP, "⚠️ メガ粒子砲の射線を検知！危険エリアから緊急退避します！");
+        }
     }
-}
 
-// 👑 王がメガビーム射線上にいて、かつ龍がチャージ中の場合の判定強化
-for (let r = 0; r < 9; r++) {
-    for (let c = 0; c < 9; c++) {
-        let p = boardState[r] ? boardState[r][c] : null;
-        if (p && p.p === 2 && p.t === 'OU' && chargingRyuPos) {
-            // 王と龍が同じ行（横）または同じ列（縦）にいる＝貫通爆撃エリア内！
-            if (r === chargingRyuPos.r || c === chargingRyuPos.c) {
-                // 王を射線外へ移動させる手のスコアを跳ね上げる
-                possibleActions.forEach(act => {
-                    if (act.from.r === r && act.from.c === c) {
-                        if (act.to.r !== chargingRyuPos.r && act.to.c !== chargingRyuPos.c) {
-                            act.score += 9999; // 👑 壁に関係なく絶対退避！
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            let p = boardState[r] ? boardState[r][c] : null;
+            if (p && p.p === activeP && (p.t === 'OU' || p.t === 'BOSS')) {
+                if (r === chargingRyuPos.r || c === chargingRyuPos.c) {
+                    possibleActions.forEach(act => {
+                        if (act.from && act.to && act.from.r === r && act.from.c === c) {
+                            if (act.to.r !== chargingRyuPos.r && act.to.c !== chargingRyuPos.c) {
+                                act.score += 9999;
+                            }
                         }
-                    }
-                });
+                    });
+                }
             }
         }
     }
@@ -3666,6 +4213,74 @@ window.onload = function() { initGame(); };
 <!-- 🟡【NEW】CvCモード用の隠しファイル読み込みインプット -->
 <!-- 🟡【NEW】CvCモード用インプット（複数選択対応） -->
 <input type="file" id="cvc-import-multi" style="display:none;" accept=".json" multiple>
+
+<!-- 🎮 CPU難易度選択モーダル -->
+<div id="cpu-level-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:600; justify-content:center; align-items:center;">
+    <div style="background:#181824; border:2px solid #00ffff; border-radius:10px; width:90%; max-width:340px; padding:20px; box-shadow:0 0 20px rgba(0,255,255,0.5); text-align:center;">
+        <h3 style="color:#00ffff; margin:0 0 15px 0; font-size:16px;">🧠 CPU難易度選択</h3>
+        
+        <!-- トグルボタン群 -->
+        <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px;">
+            <button class="level-toggle-btn active-lvl" id="lvl-btn-easy" onclick="selectCpuLevel('easy')">
+                🌱 初級
+            </button>
+            <button class="level-toggle-btn" id="lvl-btn-normal" onclick="selectCpuLevel('normal')">
+                ⚔️ 中級
+            </button>
+            <button class="level-toggle-btn" id="lvl-btn-hard" onclick="selectCpuLevel('hard')">
+                🔥 上級
+            </button>
+        </div>
+
+        <div style="display:flex; gap:10px;">
+            <button class="ai-btn" style="flex:1; background:#444;" onclick="closeCpuLevelModal()">キャンセル</button>
+            <button class="ai-btn" style="flex:1; background:#0088cc; border-color:#00ffff; font-weight:bold;" onclick="startSelectedCpuGame()">出撃開始！</button>
+        </div>
+    </div>
+</div>
+
+<!-- 🛍️ アイテムショップ・モーダル -->
+<div id="item-shop-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:600; justify-content:center; align-items:center;">
+    <div style="background:#181824; border:2px solid #00ffff; border-radius:10px; width:90%; max-width:360px; padding:15px; box-shadow:0 0 20px rgba(0,255,255,0.5);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #333; padding-bottom:6px;">
+            <span style="font-weight:900; color:#00ffff; font-size:14px;">🧰 有効化アイテム選択</span>
+            <span style="font-size:10px; color:#00ff66;">ALL FREE（テスト中）</span>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:15px;">
+            <!-- 🥽 スカウターゴーグル -->
+            <div class="item-card">
+                <div class="item-card-info">
+                    <div class="item-card-title">🥽 スカウター・ゴーグル</div>
+                    <div class="item-card-desc">全マスの互いの利き枚数とコスト合計をリアルタイム可視化。</div>
+                </div>
+                <button class="ai-btn" id="item-btn-scouter" onclick="useItemGoggles()">展開/解除</button>
+            </div>
+
+            <!-- 💣 地雷 (準備中) -->
+            <div class="item-card" style="opacity:0.6;">
+                <div class="item-card-info">
+                    <div class="item-card-title">💣 戦術地雷</div>
+                    <div class="item-card-desc">指定の空きマスに隠し罠を設置。踏んだ機体に1ダメ。</div>
+                </div>
+                <button class="ai-btn" style="background:#444; border-color:#666;" onclick="alert('準備中機能です')">選択</button>
+            </div>
+
+            <!-- ⚡ 必殺技チャージ缶 (準備中) -->
+            <div class="item-card" style="opacity:0.6;">
+                <div class="item-card-info">
+                    <div class="item-card-title">⚡ 必殺技チャージ缶</div>
+                    <div class="item-card-desc">選択中の自機エネルギーを即時フルチャージ。</div>
+                </div>
+                <button class="ai-btn" style="background:#444; border-color:#666;" onclick="alert('準備中機能です')">選択</button>
+            </div>
+        </div>
+
+        <div style="display:flex; gap:8px;">
+            <button class="ai-btn" style="flex:1; background:#443333; border-color:#ff3366;" onclick="closeItemModal()">キャンセル / 閉じる</button>
+        </div>
+    </div>
+</div>
 
 </body>
 </html>
