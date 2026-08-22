@@ -569,6 +569,12 @@ body:not(.show-scouter) .cover-badge {
     }
 }
 
+/* 📱 スマホ・画面幅が狭い時はPC用モニター枠を非表示にする（タイトル突き抜け防止！） */
+@media screen and (max-width: 768px) {
+    #debug-eval-monitor {
+        display: none !important;
+    }
+}
 
 /* 🔍 検証モード用：攻撃を受けた駒（赤色発光） */
 .cell.dbg-target {
