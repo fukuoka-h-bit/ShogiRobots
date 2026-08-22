@@ -719,15 +719,15 @@ body:not(.show-scouter) .cover-badge {
     </div>
 </div>
 
-<!-- 📱 スマホ用上下分割モーダル本体 -->
-<div id="eval-modal-mobile" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.35); z-index:2000; pointer-events:none; flex-direction:column; justify-content:space-between; padding:10px 10px 20px 10px;">
-    <!-- 🟦 上枠：評価値＆ゲージバー -->
-    <div id="eval-top-box" style="background:rgba(18, 18, 28, 0.95); border:2px solid #00ffff; border-radius:10px; width:100%; max-width:440px; margin:0 auto; padding:10px; box-shadow:0 0 15px rgba(0,255,255,0.4); pointer-events:auto;">
+<!-- 📱 スマホ用上下分割モーダル本体（1段目被り防止・超薄型版） -->
+<div id="eval-modal-mobile" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.25); z-index:2000; pointer-events:none; flex-direction:column; justify-content:space-between; padding:4px 10px 10px 10px;">
+    <!-- 🟦 上枠：評価値＆ゲージバー（薄型化） -->
+    <div id="eval-top-box" style="background:rgba(18, 18, 28, 0.95); border:1.5px solid #00ffff; border-radius:8px; width:100%; max-width:440px; margin:0 auto; padding:6px 10px; box-shadow:0 0 12px rgba(0,255,255,0.4); pointer-events:auto; font-size:11px;">
         <!-- ここにスコア表示がクローンされます -->
     </div>
 
     <!-- 🟩 下枠：コントロールボタン群 -->
-    <div id="eval-bottom-box" style="background:rgba(18, 18, 28, 0.95); border:2px solid #00ffff; border-radius:10px; width:100%; max-width:440px; margin:0 auto; padding:10px; box-shadow:0 0 15px rgba(0,255,255,0.4); pointer-events:auto; display:flex; flex-direction:column; gap:8px;">
+    <div id="eval-bottom-box" style="background:rgba(18, 18, 28, 0.95); border:1.5px solid #00ffff; border-radius:8px; width:100%; max-width:440px; margin:0 auto; padding:8px 10px; box-shadow:0 0 12px rgba(0,255,255,0.4); pointer-events:auto; display:flex; flex-direction:column; gap:6px;">
         <!-- ここにボタン群がクローンされます -->
     </div>
 </div>
@@ -1729,7 +1729,7 @@ function resumeFromDebug() {
     }
 }
 
-// 📱 スマホ用モーダルの開閉関数（上下分割対応版）
+// 📱 スマホ用上下分割モーダル（1P/2P横並び・1段目完全露出版）
 function openEvalModal() {
     playSE('select');
     let modal = document.getElementById('eval-modal-mobile');
@@ -1738,30 +1738,48 @@ function openEvalModal() {
     let bottomBox = document.getElementById('eval-bottom-box');
 
     if (modal && content && topBox && bottomBox) {
-        // モニターの内容を上下に分けてクローン・配置
         let titleEl = content.children[0]; // EVAL MONITOR Turn X
         let score1P = content.children[1]; // 1Pスコア
         let score2P = content.children[2]; // 2Pスコア
         let barEl = content.children[3];   // ゲージバー
-        let detailEl = content.children[4];// 駒・囲い・危険内訳
+        let detailEl = content.children[4];// 内訳
         let btnsEl = content.children[5];  // 戻る・進む・再開ボタン
 
         topBox.innerHTML = '';
         bottomBox.innerHTML = '';
 
-        // 上枠に要素を移動
+        // 1. タイトル
         if (titleEl) topBox.appendChild(titleEl);
-        if (score1P) topBox.appendChild(score1P);
-        if (score2P) topBox.appendChild(score2P);
-        if (barEl) topBox.appendChild(barEl);
-        if (detailEl) topBox.appendChild(detailEl);
 
-        // 下枠にボタン群と「閉じる」ボタンを移動
+        // 2. 💡【新機能】1Pと2Pのスコアを1行（左右横並び）にするコンテナを作成
+        let scoreRow = document.createElement('div');
+        scoreRow.id = 'eval-score-row-mobile';
+        scoreRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin: 4px 0; font-size: 13px; font-weight: 900;';
+        
+        if (score1P) {
+            score1P.style.marginBottom = '0';
+            scoreRow.appendChild(score1P);
+        }
+        if (score2P) {
+            score2P.style.marginBottom = '0';
+            scoreRow.appendChild(score2P);
+        }
+        topBox.appendChild(scoreRow);
+
+        // 3. ゲージバーと詳細内訳
+        if (barEl) topBox.appendChild(barEl);
+        if (detailEl) {
+            detailEl.style.fontSize = '10px';
+            detailEl.style.marginBottom = '0';
+            topBox.appendChild(detailEl);
+        }
+
+        // 4. 下枠に操作ボタン群を配置
         if (btnsEl) bottomBox.appendChild(btnsEl);
         
         let closeBtn = document.createElement('button');
         closeBtn.className = 'ai-btn';
-        closeBtn.style.cssText = 'width:100%; margin-top:4px; background:#443333; border-color:#ff3366; padding:8px; font-weight:bold;';
+        closeBtn.style.cssText = 'width:100%; margin-top:2px; background:#443333; border-color:#ff3366; padding:6px; font-weight:bold; font-size:11px;';
         closeBtn.innerText = '閉じる';
         closeBtn.onclick = closeEvalModal;
         bottomBox.appendChild(closeBtn);
@@ -1779,12 +1797,37 @@ function closeEvalModal() {
     let bottomBox = document.getElementById('eval-bottom-box');
 
     if (modal && content && pcMonitor) {
-        // 閉じる時は元のPC用コンテナ枠に全要素を順番通り戻す
         content.innerHTML = '';
-        while (topBox.firstChild) {
-            content.appendChild(topBox.firstChild);
+        
+        // 上枠からパーツを元通り（縦並び用スタイルに復元して）PC枠へ戻す
+        let titleEl = topBox.children[0];
+        let scoreRow = document.getElementById('eval-score-row-mobile');
+        let barEl = topBox.children[2] || topBox.children[1];
+        let detailEl = topBox.children[3] || topBox.children[2];
+
+        if (titleEl) content.appendChild(titleEl);
+
+        if (scoreRow) {
+            let score1P = scoreRow.children[0];
+            let score2P = scoreRow.children[1];
+            if (score1P) {
+                score1P.style.marginBottom = '4px';
+                content.appendChild(score1P);
+            }
+            if (score2P) {
+                score2P.style.marginBottom = '8px';
+                content.appendChild(score2P);
+            }
         }
-        // 下枠から戻る・進む・再開ボタンだけ戻す（閉じるボタンは捨てる）
+
+        if (barEl) content.appendChild(barEl);
+        if (detailEl) {
+            detailEl.style.fontSize = '11px';
+            detailEl.style.marginBottom = '10px';
+            content.appendChild(detailEl);
+        }
+
+        // 下枠から操作ボタン群を戻す
         if (bottomBox.firstChild) {
             content.appendChild(bottomBox.firstChild);
         }
