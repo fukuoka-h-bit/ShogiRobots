@@ -719,11 +719,16 @@ body:not(.show-scouter) .cover-badge {
     </div>
 </div>
 
-<!-- 📱 スマホ用ポップアップモーダル本体 -->
-<div id="eval-modal-mobile" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:2000; justify-content:center; align-items:center;">
-    <div style="background:#181824; border:2px solid #00ffff; border-radius:10px; width:90%; max-width:320px; padding:16px; box-shadow:0 0 20px rgba(0,255,255,0.5);">
-        <div id="mobile-eval-clone-target"></div>
-        <button class="ai-btn" style="width:100%; margin-top:12px; background:#443333; border-color:#ff3366;" onclick="closeEvalModal()">閉じる</button>
+<!-- 📱 スマホ用上下分割モーダル本体 -->
+<div id="eval-modal-mobile" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.35); z-index:2000; pointer-events:none; flex-direction:column; justify-content:space-between; padding:10px 10px 20px 10px;">
+    <!-- 🟦 上枠：評価値＆ゲージバー -->
+    <div id="eval-top-box" style="background:rgba(18, 18, 28, 0.95); border:2px solid #00ffff; border-radius:10px; width:100%; max-width:440px; margin:0 auto; padding:10px; box-shadow:0 0 15px rgba(0,255,255,0.4); pointer-events:auto;">
+        <!-- ここにスコア表示がクローンされます -->
+    </div>
+
+    <!-- 🟩 下枠：コントロールボタン群 -->
+    <div id="eval-bottom-box" style="background:rgba(18, 18, 28, 0.95); border:2px solid #00ffff; border-radius:10px; width:100%; max-width:440px; margin:0 auto; padding:10px; box-shadow:0 0 15px rgba(0,255,255,0.4); pointer-events:auto; display:flex; flex-direction:column; gap:8px;">
+        <!-- ここにボタン群がクローンされます -->
     </div>
 </div>
 
@@ -1724,16 +1729,43 @@ function resumeFromDebug() {
     }
 }
 
-// 📱 スマホ用モーダルの開閉関数
+// 📱 スマホ用モーダルの開閉関数（上下分割対応版）
 function openEvalModal() {
     playSE('select');
     let modal = document.getElementById('eval-modal-mobile');
     let content = document.getElementById('eval-monitor-content');
-    let cloneTarget = document.getElementById('mobile-eval-clone-target');
+    let topBox = document.getElementById('eval-top-box');
+    let bottomBox = document.getElementById('eval-bottom-box');
 
-    if (modal && content && cloneTarget) {
-        // PC用モニターからコンテンツをモーダル内へ移動
-        cloneTarget.appendChild(content);
+    if (modal && content && topBox && bottomBox) {
+        // モニターの内容を上下に分けてクローン・配置
+        let titleEl = content.children[0]; // EVAL MONITOR Turn X
+        let score1P = content.children[1]; // 1Pスコア
+        let score2P = content.children[2]; // 2Pスコア
+        let barEl = content.children[3];   // ゲージバー
+        let detailEl = content.children[4];// 駒・囲い・危険内訳
+        let btnsEl = content.children[5];  // 戻る・進む・再開ボタン
+
+        topBox.innerHTML = '';
+        bottomBox.innerHTML = '';
+
+        // 上枠に要素を移動
+        if (titleEl) topBox.appendChild(titleEl);
+        if (score1P) topBox.appendChild(score1P);
+        if (score2P) topBox.appendChild(score2P);
+        if (barEl) topBox.appendChild(barEl);
+        if (detailEl) topBox.appendChild(detailEl);
+
+        // 下枠にボタン群と「閉じる」ボタンを移動
+        if (btnsEl) bottomBox.appendChild(btnsEl);
+        
+        let closeBtn = document.createElement('button');
+        closeBtn.className = 'ai-btn';
+        closeBtn.style.cssText = 'width:100%; margin-top:4px; background:#443333; border-color:#ff3366; padding:8px; font-weight:bold;';
+        closeBtn.innerText = '閉じる';
+        closeBtn.onclick = closeEvalModal;
+        bottomBox.appendChild(closeBtn);
+
         modal.style.display = 'flex';
     }
 }
@@ -1743,9 +1775,20 @@ function closeEvalModal() {
     let modal = document.getElementById('eval-modal-mobile');
     let content = document.getElementById('eval-monitor-content');
     let pcMonitor = document.getElementById('debug-eval-monitor');
+    let topBox = document.getElementById('eval-top-box');
+    let bottomBox = document.getElementById('eval-bottom-box');
 
     if (modal && content && pcMonitor) {
-        // 閉じたら元のPC用枠へ戻す
+        // 閉じる時は元のPC用コンテナ枠に全要素を順番通り戻す
+        content.innerHTML = '';
+        while (topBox.firstChild) {
+            content.appendChild(topBox.firstChild);
+        }
+        // 下枠から戻る・進む・再開ボタンだけ戻す（閉じるボタンは捨てる）
+        if (bottomBox.firstChild) {
+            content.appendChild(bottomBox.firstChild);
+        }
+
         pcMonitor.appendChild(content);
         modal.style.display = 'none';
     }
