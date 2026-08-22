@@ -569,6 +569,18 @@ body:not(.show-scouter) .cover-badge {
     }
 }
 
+
+/* 🔍 検証モード用：攻撃を受けた駒（赤色発光） */
+.cell.dbg-target {
+    border: 3px solid #ff0055 !important;
+    box-shadow: inset 0 0 20px rgba(255, 0, 85, 0.9), 0 0 12px #ff0055 !important;
+    animation: dbg-pulse-red 0.8s infinite alternate;
+}
+
+@keyframes dbg-pulse-red {
+    from { background-color: rgba(150, 0, 50, 0.4); }
+    to { background-color: rgba(255, 0, 85, 0.65); }
+}
 </style>
 </head>
 <body>
@@ -622,6 +634,8 @@ body:not(.show-scouter) .cover-badge {
     <button class="audio-btn" id="btn-se" onclick="toggleSE()">🔊 SE: ON</button>
     <button class="audio-btn" id="btn-hp" onclick="toggleHP()">❤️ HP: ON</button>
     <button class="audio-btn" id="btn-title" onclick="backToTitle()" style="background:#443322; border-color:#ffaa00; color:#ffaa00;">🏠 タイトル</button>
+<!-- 📱 スマホ用：デバッグモニター起動ボタン -->
+<button id="btn-open-eval-modal" onclick="openEvalModal()">📊 Monitor</button>
 </div>
 
 <div id="boss-hp-container">
@@ -655,6 +669,57 @@ body:not(.show-scouter) .cover-badge {
         <div class="captured-list" id="cap-list-1"></div>
         <button class="item-modal-btn" onclick="openItemModal()">🧰 Item</button>
     </div>
+
+<!-- 📊 デバッグ用評価値モニター（PC時：常時表示 / スマホ時：モーダル化） -->
+<div id="debug-eval-monitor" style="position: fixed; top: 10px; right: 10px; background: rgba(10, 10, 20, 0.95); color: #00ffff; font-family: monospace; padding: 12px; border-radius: 8px; border: 1.5px solid #00ffff; z-index: 1000; font-size: 13px; text-align: left; width: 240px; box-shadow: 0 0 12px rgba(0,255,255,0.4);">
+    <!-- モニター内部（既存の表示コンテンツ） -->
+    <div id="eval-monitor-content">
+        <div style="font-weight: bold; border-bottom: 1px solid #444; padding-bottom: 4px; margin-bottom: 6px; display: flex; justify-content: space-between; font-size: 13px;">
+            <span>📊 EVAL MONITOR</span>
+            <span class="eval-turn-display" style="color:#aaa;">Turn 1</span>
+        </div>
+
+        <div style="font-size: 15px; font-weight: 900; color: #4da6ff; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <span>🟦 1P: <span class="eval-1p-total" style="font-size: 17px;">0</span></span>
+            <span class="eval-1p-diff" style="font-size: 12px; color: #888;">(±0)</span>
+        </div>
+
+        <div style="font-size: 15px; font-weight: 900; color: #ffaa00; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span>🟨 2P: <span class="eval-2p-total" style="font-size: 17px;">0</span></span>
+            <span class="eval-2p-diff" style="font-size: 12px; color: #888;">(±0)</span>
+        </div>
+
+        <div style="width: 100%; height: 8px; background: #333; border-radius: 4px; overflow: hidden; margin-bottom: 8px; display: flex;">
+            <div class="eval-bar-1p" style="width: 50%; height: 100%; background: #4da6ff; transition: width 0.3s;"></div>
+            <div class="eval-bar-2p" style="width: 50%; height: 100%; background: #ffaa00; transition: width 0.3s;"></div>
+        </div>
+
+        <div style="font-size: 11px; color: #ccc; line-height: 1.4; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 6px;">
+            <div style="display: flex; justify-content: space-between;">
+                <span>1P 駒:<span class="eval-1p-mat">0</span> 囲:<span class="eval-1p-cas">0</span></span>
+                <span style="color:#ff5577;">危険:<span class="eval-1p-dan">0</span></span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>2P 駒:<span class="eval-2p-mat">0</span> 囲:<span class="eval-2p-cas">0</span></span>
+                <span style="color:#ff5577;">危険:<span class="eval-2p-dan">0</span></span>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 4px;">
+            <button class="btn-dbg-undo" style="flex:1; padding:6px 2px; font-size:11px; font-weight:bold; background:#2a2a3d; border:1px solid #888; color:#fff; border-radius:4px;" onclick="undoMoveDebug()" disabled>◀戻る</button>
+            <button class="btn-dbg-redo" style="flex:1; padding:6px 2px; font-size:11px; font-weight:bold; background:#2a2a3d; border:1px solid #888; color:#fff; border-radius:4px;" onclick="redoMoveDebug()" disabled>進む▶</button>
+            <button class="btn-dbg-resume" style="flex:1; padding:6px 2px; font-size:11px; font-weight:bold; background:#005544; border:1px solid #00ffcc; color:#00ffcc; border-radius:4px;" onclick="resumeFromDebug()" disabled>▶再開</button>
+        </div>
+    </div>
+</div>
+
+<!-- 📱 スマホ用ポップアップモーダル本体 -->
+<div id="eval-modal-mobile" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:2000; justify-content:center; align-items:center;">
+    <div style="background:#181824; border:2px solid #00ffff; border-radius:10px; width:90%; max-width:320px; padding:16px; box-shadow:0 0 20px rgba(0,255,255,0.5);">
+        <div id="mobile-eval-clone-target"></div>
+        <button class="ai-btn" style="width:100%; margin-top:12px; background:#443333; border-color:#ff3366;" onclick="closeEvalModal()">閉じる</button>
+    </div>
+</div>
 
     <div id="bottom-panel">
         <div class="cmd-row">
@@ -865,6 +930,7 @@ let isSpecialReady = false;
 let selectedSpecialType = 'shield'; 
 let isHorseDockingMode = false; 
 let lastMoveTo = null; 
+let lastAttackTo = null;
 let logs = [];
 let bossCoolDown = 0; 
 let lastCheckState = false;
@@ -1365,6 +1431,320 @@ function animatePieceMove(fromR, fromC, toR, toC, isCapture, callback) {
     }, 250);
 }
 
+// ==========================================
+// 💡 合成距離（マンハッタン ＋ チェビシェフ）計算関数
+// ==========================================
+function getHybridDistance(r1, c1, r2, c2) {
+    let dR = Math.abs(r1 - r2);
+    let dC = Math.abs(c1 - c2);
+    let manhattan = dR + dC;
+    let chebyshev = Math.max(dR, dC);
+    return manhattan + chebyshev;
+}
+
+// 💡 直前の1P・2P評価値を独立して記録する変数
+let prevEval1P = 0;
+let prevEval2P = 0;
+
+// 📊 全体スコア評価（持ち駒加算＆1P/2P 独立評価版）
+function evaluateBoardFull(pState) {
+    if (!pState || pState.length === 0) return 0;
+    
+    let p1Mat = 0, p1Cas = 0, p1Dan = 0;
+    let p2Mat = 0, p2Cas = 0, p2Dan = 0;
+    let king1P = null, king2P = null;
+
+    // 玉の位置探索
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            let p = pState[r] ? pState[r][c] : null;
+            if (p && (p.t === 'OU' || p.t === 'BOSS')) {
+                if (p.p === 1) king1P = { r, c };
+                if (p.p === 2) king2P = { r, c };
+            }
+        }
+    }
+
+// 1. 盤上の駒の評価集計（HP減少＆削り実績の反映）
+for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+        let p = pState[r] ? pState[r][c] : null;
+        if (!p) continue;
+
+        let baseVal = PIECE_VALUES[p.t] || 100;
+        if (p.promoted) baseVal += 200;
+
+        let maxHp = (PIECE_TYPES[p.t] ? PIECE_TYPES[p.t].hp : 2);
+        
+        // 💡 ダメージ1につき、駒価値の30%分のスコア損失
+        let damageCount = Math.max(0, maxHp - p.hp);
+        let hpPenalty = Math.round(baseVal * 0.3) * damageCount;
+        let currentVal = Math.max(10, baseVal - hpPenalty);
+
+        if (p.p === 1) {
+            p1Mat += currentVal;
+            p2Mat += hpPenalty; // 🟨 2Pが1Pを削った分の実績スコアとして2Pにプラス加算！
+        } else {
+            p2Mat += currentVal;
+            p1Mat += hpPenalty; // 🟦 1Pが2Pを削った分の実績スコアとして1Pにプラス加算！
+        }
+        
+            // 囲い接近ボーナス（合成距離）
+            if (p.t === 'KI' || p.t === 'GI') {
+                let targetKing = p.p === 1 ? king1P : king2P;
+                if (targetKing) {
+                    let dist = getHybridDistance(r, c, targetKing.r, targetKing.c);
+                    let proximityScore = Math.max(0, (32 - dist)) * 5;
+                    if (p.p === 1) p1Cas += proximityScore;
+                    else p2Cas += proximityScore;
+                }
+            }
+
+            // 危険度ペナルティ
+            if (typeof isTileAttackedByEnemy === 'function' && isTileAttackedByEnemy(r, c, p.p)) {
+                let pVal = (PIECE_VALUES[p.t] || 100);
+                if (p.p === 1) p1Dan += Math.round(pVal * 0.3);
+                else p2Dan += Math.round(pVal * 0.3);
+            }
+        }
+    }
+
+    // 2. 🧰 持ち駒（captured）の評価加算（ここが抜けていました！）
+    if (captured && captured[1]) {
+        captured[1].forEach(pieceType => {
+            let val = PIECE_VALUES[pieceType] || 100;
+            p1Mat += Math.round(val * 1.1); // 打ち替えの利便性を考慮して1.1倍
+        });
+    }
+    if (captured && captured[2]) {
+        captured[2].forEach(pieceType => {
+            let val = PIECE_VALUES[pieceType] || 100;
+            p2Mat += Math.round(val * 1.1);
+        });
+    }
+
+    let p1Total = Math.round(p1Mat + p1Cas - p1Dan);
+    let p2Total = Math.round(p2Mat + p2Cas - p2Dan);
+
+    // 各自の直前手との差分（変動値）を計算
+    let diff1P = p1Total - prevEval1P;
+    let diff2P = p2Total - prevEval2P;
+
+    prevEval1P = p1Total;
+    prevEval2P = p2Total;
+
+    updateEvalMonitorUI(p1Total, diff1P, p2Total, diff2P, p1Mat, p1Cas, p1Dan, p2Mat, p2Cas, p2Dan);
+    return p1Total - p2Total;
+}
+
+function updateEvalMonitorUI(p1Tot, diff1P, p2Tot, diff2P, p1Mat, p1Cas, p1Dan, p2Mat, p2Cas, p2Dan) {
+    // 画面全体から該当のクラス（またはID）を持つ要素を探す補助関数
+    let setTxt = (selector, val) => {
+        let els = document.querySelectorAll(selector);
+        els.forEach(el => el.innerText = val);
+    };
+
+    setTxt('.eval-1p-total, #eval-1p-total', p1Tot);
+    setTxt('.eval-2p-total, #eval-2p-total', p2Tot);
+    setTxt('.eval-turn-display, #eval-turn-display', `Turn ${totalTurnsCount}`);
+
+    // 差分（±変動値）描画処理
+    let formatDiff = (selector, diff) => {
+        let els = document.querySelectorAll(selector);
+        els.forEach(el => {
+            if (diff > 0) {
+                el.innerText = `(▲+${diff})`;
+                el.style.color = '#00ff66';
+            } else if (diff < 0) {
+                el.innerText = `(▼${diff})`;
+                el.style.color = '#ff4466';
+            } else {
+                el.innerText = `(±0)`;
+                el.style.color = '#888';
+            }
+        });
+    };
+
+    formatDiff('.eval-1p-diff, #eval-1p-diff', diff1P);
+    formatDiff('.eval-2p-diff, #eval-2p-diff', diff2P);
+
+    // 内訳数値の更新
+    setTxt('.eval-1p-mat, #eval-1p-mat', Math.round(p1Mat));
+    setTxt('.eval-1p-cas, #eval-1p-cas', Math.round(p1Cas));
+    setTxt('.eval-1p-dan, #eval-1p-dan', Math.round(p1Dan));
+    
+    setTxt('.eval-2p-mat, #eval-2p-mat', Math.round(p2Mat));
+    setTxt('.eval-2p-cas, #eval-2p-cas', Math.round(p2Cas));
+    setTxt('.eval-2p-dan, #eval-2p-dan', Math.round(p2Dan));
+
+    // ゲージバーの長さ更新
+    let grandTotal = Math.max(1, p1Tot + p2Tot);
+    let p1Pct = Math.min(90, Math.max(10, (p1Tot / grandTotal) * 100));
+
+    document.querySelectorAll('.eval-bar-1p, #eval-bar-1p').forEach(el => el.style.width = p1Pct + '%');
+    document.querySelectorAll('.eval-bar-2p, #eval-bar-2p').forEach(el => el.style.width = (100 - p1Pct) + '%');
+}
+
+// ==========================================
+// 🔍 検証（デバッグ）モード用 履歴＆操作システム
+// ==========================================
+let gameStateHistory = [];
+let historyIndex = -1;
+let isDebugInspectionMode = false; // 検証モード中フラグ
+let checkpointIndex = -1;           // 再開時に戻る元の履歴インデックス
+
+// スナップショット作成
+function createSnapshot() {
+    return {
+        boardState: JSON.parse(JSON.stringify(boardState)),
+        captured: JSON.parse(JSON.stringify(captured)),
+        turn: turn,
+        totalTurnsCount: totalTurnsCount,
+        itemState: JSON.parse(JSON.stringify(itemState)),
+        lastMoveTo: lastMoveTo ? { ...lastMoveTo } : null,
+        // 💡 その手番でヒットした全攻撃マスを完全保存！
+        turnAttacks: window.currentTurnAttacks ? JSON.parse(JSON.stringify(window.currentTurnAttacks)) : []
+    };
+}
+
+// 履歴記録
+function recordGameState() {
+    if (isDebugInspectionMode) return; // 検証モード中は新履歴を作らない
+    let snapshot = createSnapshot();
+    gameStateHistory.push(snapshot);
+    historyIndex = gameStateHistory.length - 1;
+    updateDebugButtonsUI();
+}
+
+// スナップショット復元（検証モード中）
+function applySnapshot(snapshot) {
+    boardState = JSON.parse(JSON.stringify(snapshot.boardState));
+    captured = JSON.parse(JSON.stringify(snapshot.captured));
+    turn = snapshot.turn;
+    totalTurnsCount = snapshot.totalTurnsCount;
+    itemState = JSON.parse(JSON.stringify(snapshot.itemState));
+    lastMoveTo = snapshot.lastMoveTo ? { ...snapshot.lastMoveTo } : null;
+    
+    // 💡 その手番の攻撃情報を復元！
+    window.currentTurnAttacks = snapshot.turnAttacks ? JSON.parse(JSON.stringify(snapshot.turnAttacks)) : [];
+
+    resetSelection();
+    evaluateBoardFull(boardState);
+    renderBoard();
+    updateDebugButtonsUI();
+}
+
+// 🛠️ デバッグボタンの表示状態制御
+function updateDebugButtonsUI() {
+    let undoBtns = document.querySelectorAll('.btn-dbg-undo, #btn-dbg-undo');
+    let redoBtns = document.querySelectorAll('.btn-dbg-redo, #btn-dbg-redo');
+    let resumeBtns = document.querySelectorAll('.btn-dbg-resume, #btn-dbg-resume');
+    let boardOverlay = document.getElementById('board-overlay');
+
+    if (!isDebugInspectionMode) {
+        // --- 通常プレイ中 ---
+        undoBtns.forEach(btn => btn.disabled = (historyIndex <= 0)); // 1手目は「戻る」不可
+        redoBtns.forEach(btn => btn.disabled = true);
+        resumeBtns.forEach(btn => btn.disabled = true);
+        if (boardOverlay && !isHorseDockingMode) boardOverlay.style.display = 'none';
+    } else {
+        // --- 検証モード中（操作不可） ---
+        undoBtns.forEach(btn => btn.disabled = (historyIndex <= 0));
+        redoBtns.forEach(btn => btn.disabled = (historyIndex >= gameStateHistory.length - 1));
+        resumeBtns.forEach(btn => btn.disabled = false); // 再開ボタンON
+        
+        // 盤面を操作不可能（オーバーレイ表示）にする
+        if (boardOverlay) {
+            boardOverlay.innerText = "🔍 検証中";
+            boardOverlay.style.background = 'rgba(0, 0, 0, 0.2)'; // 👈 0.25 から 0.15 などに下げるとさらに見やすくなります！
+            boardOverlay.style.display = 'flex';
+        }
+    }
+}
+
+// ◀ 一手戻る（検証モード開始）
+function undoMoveDebug() {
+    // 🛑【追加】CvC等の進行中タイマーを物理的に全消去してCPUを緊急停止！
+    let highestTimeoutId = setTimeout(";");
+    for (let i = 0; i <= highestTimeoutId; i++) clearTimeout(i);
+    isProcessingTurn = false;
+
+    // 初めて戻るボタンを押した時、その時点を「再開用チェックポイント」として保持
+    if (!isDebugInspectionMode) {
+        isDebugInspectionMode = true;
+        checkpointIndex = historyIndex;
+    }
+
+    let steps = 1;
+    let target = Math.max(0, historyIndex - steps);
+
+    if (gameStateHistory[target]) {
+        playSE('select');
+        historyIndex = target;
+        applySnapshot(gameStateHistory[historyIndex]);
+    }
+}
+
+// 一手進む ▶（検証モード中のみ）
+function redoMoveDebug() {
+    if (!isDebugInspectionMode || isProcessingTurn) return;
+
+    let steps = 1;
+    let target = Math.min(gameStateHistory.length - 1, historyIndex + steps);
+
+    if (gameStateHistory[target]) {
+        playSE('select');
+        historyIndex = target;
+        applySnapshot(gameStateHistory[historyIndex]);
+    }
+}
+
+// ▶ 再開（検証モード終了 ➔ 元の盤面へ復帰）
+function resumeFromDebug() {
+    if (!isDebugInspectionMode) return;
+
+    playSE('special');
+    isDebugInspectionMode = false;
+    historyIndex = checkpointIndex; // 「一手戻る」を押した時点の位置へ復帰！
+    
+    applySnapshot(gameStateHistory[historyIndex]);
+    
+    let infoEl = document.getElementById('info-panel');
+    if (infoEl) infoEl.innerText = "▶ 対局を再開しました！";
+
+    // 🚀【追加】再開後にCPUのターン（またはCvC）なら思考を再開させる！
+    if (gameMode === 'cvc' || ((gameMode === 'pve' || gameMode === 'boss') && turn === 2)) {
+        setTimeout(playCPUTurn, 600);
+    }
+}
+
+// 📱 スマホ用モーダルの開閉関数
+function openEvalModal() {
+    playSE('select');
+    let modal = document.getElementById('eval-modal-mobile');
+    let content = document.getElementById('eval-monitor-content');
+    let cloneTarget = document.getElementById('mobile-eval-clone-target');
+
+    if (modal && content && cloneTarget) {
+        // PC用モニターからコンテンツをモーダル内へ移動
+        cloneTarget.appendChild(content);
+        modal.style.display = 'flex';
+    }
+}
+
+function closeEvalModal() {
+    playSE('select');
+    let modal = document.getElementById('eval-modal-mobile');
+    let content = document.getElementById('eval-monitor-content');
+    let pcMonitor = document.getElementById('debug-eval-monitor');
+
+    if (modal && content && pcMonitor) {
+        // 閉じたら元のPC用枠へ戻す
+        pcMonitor.appendChild(content);
+        modal.style.display = 'none';
+    }
+}
+
 function calculateTargetsPure(origin, mode) {
     if (!origin || !boardState || !boardState[origin.r] || !boardState[origin.r][origin.c]) return [];
     const p = boardState[origin.r][origin.c];
@@ -1524,7 +1904,6 @@ function calculateTargetsPure(origin, mode) {
     
     }
 
-    return resTargets;
 
     if (p.promoted && p.t !== 'HI' && p.t !== 'KA' && p.t !== 'KI' && p.t !== 'SOLDIER' && p.t !== 'SHOGUN') {
         vectors = [[dir, -1], [dir, 0], [dir, 1], [0, -1], [0, 1], [-dir, 0]];
@@ -1559,7 +1938,6 @@ function calculateTargetsPure(origin, mode) {
                     }
                 }
             });
-            return resTargets;
         }
         else if (p.t === 'KA' || p.t === 'OU' || p.t === 'SHOGUN') { resTargets.push({ r: r, c: c, blocked: false }); return resTargets; }
     }
@@ -2093,36 +2471,38 @@ function evaluateActionMid(from, to, type) {
         if (targetPiece && targetPiece.p === 1) {
             let targetValue = PIECE_VALUES[targetPiece.t] || 100;
             if (targetPiece.promoted) targetValue += 200;
-            score += (targetPiece.hp <= 1) ? Math.floor(targetValue * 2.0) : Math.floor(targetValue * 1.2);
-            
-            if (targetPiece.t === 'FU') score += 200;
-            if (targetPiece.t === 'OU' || targetPiece.t === 'BOSS') score += 50000;
-            // =========================================================
-            // 🟢【追加 1】HPと反撃リスクを考慮した攻撃判断
-            // =========================================================
+
             let actorHp = actor.hp || 1;
-            let targetHp = targetPiece.hp || 1;
+            let targetHp = targetPiece.hp || 1; // 💡 ここで1回だけ宣言！
+
+            // 🗡️ 1. 削り ＆ トドメの評価
+            if (targetHp <= 1) {
+                // 💥 トドメ（撃破・拿捕）ボーナス
+                score += Math.floor(targetValue * 2.0) + 300;
+            } else {
+                // 🗡️ 【削り評価】1ダメ与えて負傷させるボーナス！
+                score += Math.floor(targetValue * 0.5) + 150;
+            }
+            
+            if (targetPiece.t === 'FU') score += 100;
+            if (targetPiece.t === 'OU' || targetPiece.t === 'BOSS') score += 50000;
+            
+            // 🟢 2. 反撃リスクの考慮
             let p1CostSumAtTarget = getTileCoverCostSum(to.r, to.c, 1); // 移動先の敵の利き
 
             if (targetHp <= 1) {
-                // 💥 1手で倒し切れる（反撃を受けない）ならボーナス！
                 score += 300;
             } else {
-                // ⚠️ 1手で倒せない（HP2以上）で、かつ移動先が危険な場合
                 if (p1CostSumAtTarget > 0) {
                     if (actorHp <= 1) {
-                        // 自分のHPが1だと次のターン反撃で即死するため大減点（特攻防止）
-                        score -= 500;
+                        score -= 500; // 瀕死特攻防止
                     } else {
-                        // 自分のHPが2あれば1発耐えられるので軽めの減点
                         score -= 150;
                     }
                 }
             }
-            // =========================================================
         }
     }
-
     if (type === 'move' || type === 'attack') {
     // 🎯 1Pの時は配列の上下（8 - to.r）を逆にして参照！
         let pstoRow = actor.p === 1 ? (8 - to.r) : to.r;
@@ -2534,6 +2914,14 @@ function renderBoard() {
             if (piece && piece.shield > 0) cell.classList.add('shielded');
             if (piece && piece.isCharging) cell.classList.add('charging');
             if (lastMoveTo && lastMoveTo.r === r && lastMoveTo.c === c) cell.classList.add('last-move-to');
+           
+    // 🔍【検証モード中限定】その手番で攻撃を受けたマス（1つでも複数でも）をすべて赤く発光！
+    if (isDebugInspectionMode && window.currentTurnAttacks && window.currentTurnAttacks.length > 0) {
+        let isAttackedCell = window.currentTurnAttacks.some(atk => atk.r === r && atk.c === c);
+        if (isAttackedCell) {
+            cell.classList.add('dbg-target');
+        }
+     }
             if (checkedKingPositions.some(pos => pos.r === r && pos.c === c)) cell.classList.add('check-warning');
 
             const target = targets.find(t => t.r === r && t.c === c);
@@ -2711,11 +3099,21 @@ function initGame() {
 
     turn = 1;
     lastMoveTo = null;
+    lastAttackTo = null;
     logs = [];
     updateBossHpBar();
     renderLog();
     resetSelection();
     if (audioCtx) startBGM();
+
+// 🛠️ 検証用履歴のリセット＆初期盤面の完全記録
+    gameStateHistory = [];
+    historyIndex = -1;
+    isDebugInspectionMode = false;
+    checkpointIndex = -1;
+
+    recordGameState(); // 正しい駒配置をTurn 1として記録！
+    evaluateBoardFull(boardState);
 }
 
 function updateBossHpBar() {
@@ -3494,6 +3892,10 @@ function executeAttack(actor, tr, tc, isSpecial, isHeavy = false, isSpearBypass 
     const targetPiece = boardState[tr] ? boardState[tr][tc] : null;
     if (!targetPiece) return;
 
+    // 🎯 攻撃ヒット！このターンで被弾したマスとして確実に記録
+    if (!window.currentTurnAttacks) window.currentTurnAttacks = [];
+    window.currentTurnAttacks.push({ r: tr, c: tc });
+
     const actorName = actor.promoted ? PIECE_TYPES[actor.t].pName : PIECE_TYPES[actor.t].name;
     const targetName = targetPiece.promoted ? PIECE_TYPES[targetPiece.t].pName : PIECE_TYPES[targetPiece.t].name;
 
@@ -3620,7 +4022,9 @@ function executeAttack(actor, tr, tc, isSpecial, isHeavy = false, isSpearBypass 
         addLog(turn, `${actorName}の${skillName}！${targetName}に${dmg}のダメージ！`);
         let infoEl = document.getElementById('info-panel');
         if (infoEl) infoEl.innerText = `攻撃命中！【${targetName}】に${dmg}ダメージ！`;
+        
         renderBoard();
+        evaluateBoardFull(boardState);
     }
 }
 
@@ -3946,7 +4350,7 @@ function resetSelection() {
     if (infoEl) infoEl.innerText = pStr;
 
 // 🧠 CPUの自動思考発動ルール
-    if (isGameOver) return;
+    if (isGameOver || isDebugInspectionMode) return; // 👈 isDebugInspectionMode を追加して検証中は停止！
 
     if (gameMode === 'cvc') {
         // 🤖 CPU vs CPUモード：1P・2P関係なく常に自動思考！
@@ -3958,6 +4362,8 @@ function resetSelection() {
 }
 
 function endTurn() {
+    if (isGameOver) return; // 🛑 ゲーム終了時（詰み・討伐時）は以降のターン進行を完全ストップ！
+
     isHorseDockingMode = false;
     let boardOverlay = document.getElementById('board-overlay');
     if (boardOverlay) boardOverlay.style.display = 'none';
@@ -4030,11 +4436,18 @@ function endTurn() {
         return;
     }
 
+
 // 🏰 CPU（2P）のターンが終わった時に「囲い」が完成したかチェック！
     if (turn === 2 && typeof checkCpuCastleCompletion === 'function') {
         checkCpuCastleCompletion();
     }
     
+    recordGameState(); // 👈 最新の盤面＆攻撃結果をスナップショットとして記録！
+    
+    // 🧹 保存が終わったので、次のターンのために攻撃記憶バッファをリセット
+    window.currentTurnAttacks = [];
+
+    evaluateBoardFull(boardState);
     resetSelection();
 }
 
